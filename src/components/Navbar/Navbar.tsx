@@ -1,3 +1,4 @@
+import { NavLink } from "react-router-dom";
 import ThemeToggle from "../ThemeToggle/ThemeToggle";
 import "./Navbar.css";
 
@@ -6,30 +7,43 @@ type NavbarProps = {
   onThemeToggle: () => void;
 };
 
-function Navbar({
-  isDarkMode,
-  onThemeToggle,
-}: NavbarProps) {
+function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
   return (
     <header className="navbar">
       <div className="navbar__content">
-        <a className="navbar__brand" href="/">
+        <NavLink className="navbar__brand" to="/">
           <span className="navbar__logo">A</span>
           <span>AXIOM</span>
-        </a>
+        </NavLink>
 
         <nav className="navbar__links" aria-label="Main navigation">
-          <a className="navbar__link navbar__link--active" href="/">
+          <NavLink
+            className={({ isActive }) =>
+              `navbar__link ${isActive ? "navbar__link--active" : ""}`
+            }
+            to="/"
+            end
+          >
             Home
-          </a>
+          </NavLink>
 
-          <a className="navbar__link" href="#grades">
+          <NavLink
+            className={({ isActive }) =>
+              `navbar__link ${isActive ? "navbar__link--active" : ""}`
+            }
+            to="/grades"
+          >
             Grades
-          </a>
+          </NavLink>
 
-          <a className="navbar__link" href="#axiom">
+          <NavLink
+            className={({ isActive }) =>
+              `navbar__link ${isActive ? "navbar__link--active" : ""}`
+            }
+            to="/axiom"
+          >
             Axiom
-          </a>
+          </NavLink>
         </nav>
 
         <div className="navbar__actions">

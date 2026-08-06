@@ -9,6 +9,7 @@
     var(--color-surface) 92%,
     transparent
   );
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
 

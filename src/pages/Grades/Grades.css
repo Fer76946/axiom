@@ -1,0 +1,147 @@
+.grades-page {
+  display: grid;
+  gap: 26px;
+}
+
+.grades-heading h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+}
+
+.grades-heading p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.grade-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.summary-card,
+.class-overview {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.summary-card {
+  display: grid;
+  min-height: 135px;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  padding: 22px;
+  text-align: center;
+}
+
+.summary-card span {
+  color: var(--color-text-secondary);
+  font-size: 0.8rem;
+}
+
+.summary-card strong {
+  font-size: 2rem;
+}
+
+.summary-card small {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.summary-card__grade {
+  color: #2da44e;
+}
+
+.summary-card--warning strong,
+.summary-card--warning small {
+  color: #e4572e;
+}
+
+.class-overview {
+  padding: 28px;
+}
+
+.class-overview h2 {
+  margin: 0 0 18px;
+  font-size: 1rem;
+}
+
+.class-list {
+  display: grid;
+}
+
+.class-row {
+  display: grid;
+  grid-template-columns: 38px minmax(150px, 1fr) minmax(180px, 1.5fr) 50px 20px;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.class-row:last-child {
+  border-bottom: 0;
+}
+
+.class-row__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
+  font-weight: 700;
+}
+
+.class-row__progress {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+}
+
+.class-row__progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+}
+
+.class-row__grade {
+  text-align: right;
+  font-weight: 700;
+}
+
+.class-row__arrow {
+  color: var(--color-text-secondary);
+  font-size: 1.4rem;
+}
+
+@media (max-width: 800px) {
+  .grade-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .class-row {
+    grid-template-columns: 38px 1fr 50px 20px;
+  }
+
+  .class-row__progress {
+    grid-column: 2 / 5;
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .grade-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .class-overview {
+    padding: 22px;
+  }
+}

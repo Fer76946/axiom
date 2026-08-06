@@ -1,0 +1,101 @@
+.axiom-page {
+  display: grid;
+  min-height: 620px;
+  place-items: center;
+  align-content: center;
+  gap: 18px;
+  padding: 50px;
+  text-align: center;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.axiom-page h1 {
+  margin: 8px 0 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+}
+
+.axiom-page p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.axiom-page button {
+  margin-top: 8px;
+  padding: 13px 25px;
+  cursor: pointer;
+  border-radius: var(--radius-small);
+  color: white;
+  background: var(--color-primary);
+  font-weight: 700;
+}
+
+.rocket-illustration {
+  display: grid;
+  width: 230px;
+  height: 230px;
+  place-items: center;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, #8061ef, transparent 32%),
+    linear-gradient(145deg, #302080, #6d47df);
+  box-shadow: 0 24px 45px rgba(86, 48, 195, 0.24);
+}
+
+.rocket {
+  position: relative;
+  width: 76px;
+  height: 125px;
+  border: 6px solid #e9e3ff;
+  border-radius: 50% 50% 35% 35%;
+  background: white;
+}
+
+.rocket::before,
+.rocket::after {
+  position: absolute;
+  bottom: 10px;
+  width: 32px;
+  height: 50px;
+  background: #a88df4;
+  content: "";
+}
+
+.rocket::before {
+  left: -27px;
+  transform: skewY(-25deg);
+  border-radius: 25px 0 0 10px;
+}
+
+.rocket::after {
+  right: -27px;
+  transform: skewY(25deg);
+  border-radius: 0 25px 10px 0;
+}
+
+.rocket__window {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  width: 28px;
+  height: 28px;
+  transform: translateX(-50%);
+  border: 6px solid var(--color-primary);
+  border-radius: 50%;
+  background: #cfc3ff;
+}
+
+.rocket__flame {
+  position: absolute;
+  bottom: -42px;
+  left: 50%;
+  width: 25px;
+  height: 50px;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 70% 70%;
+  background: linear-gradient(#ffdc73, #ff7d4d);
+}
