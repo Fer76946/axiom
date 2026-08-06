@@ -1,0 +1,16 @@
+.main-layout {
+  min-height: 100vh;
+}
+
+.main-layout__content {
+  width: min(calc(100% - 40px), var(--page-width));
+  margin: 0 auto;
+  padding: 48px 0 72px;
+}
+
+@media (max-width: 680px) {
+  .main-layout__content {
+    width: min(calc(100% - 24px), var(--page-width));
+    padding-top: 28px;
+  }
+}
