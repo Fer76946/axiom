@@ -7,12 +7,16 @@ type MainLayoutProps = {
 };
 
 function MainLayout({ children }: MainLayoutProps) {
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+  return localStorage.getItem("axiom-theme") === "dark";
+});
 
   useEffect(() => {
-    document.documentElement.dataset.theme =
-      isDarkMode ? "dark" : "light";
-  }, [isDarkMode]);
+  const theme = isDarkMode ? "dark" : "light";
+
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem("axiom-theme", theme);
+}, [isDarkMode]);
 
   function toggleTheme() {
     setIsDarkMode((currentMode) => !currentMode);
