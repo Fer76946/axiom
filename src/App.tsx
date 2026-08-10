@@ -1,11 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-
 import MainLayout from "./layouts/MainLayout/MainLayout";
-
 import Axiom from "./pages/Axiom/Axiom";
-
 import Grades from "./pages/Grades/Grades";
-
 import Home from "./pages/Home/Home";
 
 function App() {
