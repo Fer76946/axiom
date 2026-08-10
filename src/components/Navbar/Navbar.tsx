@@ -47,18 +47,20 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
         </nav>
 
         <div className="navbar__actions">
-          <button
-            className="profile-button"
-            type="button"
-            aria-label="Open profile"
-          >
-            ●
-          </button>
 
-          <ThemeToggle
+            <ThemeToggle
             isDarkMode={isDarkMode}
             onToggle={onThemeToggle}
           />
+
+          <NavLink
+            to="/login"
+            className="login-button"
+          >
+            Log In
+          </NavLink>
+
+          
         </div>
       </div>
     </header>

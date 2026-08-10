@@ -93,18 +93,33 @@
   gap: 10px;
 }
 
-.profile-button {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
+.login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-  cursor: pointer;
+  padding: 10px 18px;
+
   border: 1px solid var(--color-border);
-  border-radius: 50%;
+  border-radius: var(--radius-small);
 
-  color: var(--color-primary);
   background: var(--color-surface-secondary);
+
+  color: var(--color-text);
+
+  font-weight: 600;
+
+  transition:
+    background-color .2s,
+    transform .2s,
+    color .2s;
+}
+
+.login-button:hover {
+  transform: translateY(-2px);
+
+  background: var(--color-primary);
+  color: white;
 }
 
 @media (max-width: 680px) {
