@@ -1,0 +1,17 @@
+.teacher-page {
+  padding: 32px;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.teacher-page h1 {
+  margin-top: 0;
+}
+
+.teacher-page p {
+  color: var(--color-text-secondary);
+}
