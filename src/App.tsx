@@ -4,6 +4,8 @@ import Axiom from "./pages/Axiom/Axiom";
 import Grades from "./pages/Grades/Grades";
 import Home from "./pages/Home/Home";
 import Login from "./pages/Login/Login";
+import Teacher from "./pages/Teacher/Teacher";
+import ProtectedRoute from "./routes/ProtectedRoute";
 
 function App() {
 
@@ -16,6 +18,15 @@ function App() {
           <Route path="/grades" element={<Grades />} />
           <Route path="/axiom" element={<Axiom />} />
           <Route path="*" element={<Navigate to="/" replace />} />
+          <Route
+            path="/teacher"
+            element={
+              <ProtectedRoute requiredRole="teacher">
+                <Teacher />
+              </ProtectedRoute>
+            }
+          />
+          
         </Routes>
       </MainLayout>
     </BrowserRouter>
