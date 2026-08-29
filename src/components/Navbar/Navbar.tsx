@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import ThemeToggle from "../ThemeToggle/ThemeToggle";
+import { useAuth } from "../../contexts/useAuth";
 import "./Navbar.css";
 
 type NavbarProps = {
@@ -8,7 +9,9 @@ type NavbarProps = {
 };
 
 function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
+  const { profile } = useAuth();  
   return (
+    
     <header className="navbar">
       <div className="navbar__content">
         <NavLink className="navbar__brand" to="/">
@@ -44,6 +47,16 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
           >
             Axiom
           </NavLink>
+          {profile?.role === "teacher" && (
+            <NavLink
+              className={({ isActive }) =>
+                `navbar__link ${isActive ? "navbar__link--active" : ""}`
+              }
+              to="/teacher"
+            >
+              Teacher
+            </NavLink>
+          )}
         </nav>
 
         <div className="navbar__actions">
