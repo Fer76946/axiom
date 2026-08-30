@@ -2,6 +2,7 @@ import { NavLink } from "react-router-dom";
 import ThemeToggle from "../ThemeToggle/ThemeToggle";
 import { useAuth } from "../../contexts/useAuth";
 import "./Navbar.css";
+import { supabase } from "../../lib/supabase";
 
 type NavbarProps = {
   isDarkMode: boolean;
@@ -9,7 +10,7 @@ type NavbarProps = {
 };
 
 function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
-  const { profile } = useAuth();  
+  const { user, profile } = useAuth();  
   return (
     
     <header className="navbar">
@@ -66,12 +67,28 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
             onToggle={onThemeToggle}
           />
 
-          <NavLink
-            to="/login"
-            className="login-button"
-          >
-            Log In
-          </NavLink>
+          {user ? (
+            <>
+              <span className="navbar__status">
+                {profile?.role === "teacher" ? "Teacher" : "Student"}
+              </span>
+
+              <button
+                type="button"
+                className="login-button"
+                onClick={() => supabase.auth.signOut()}
+              >
+                Log Out
+              </button>
+            </>
+          ) : (
+            <NavLink
+              to="/login"
+              className="login-button"
+            >
+              Log In
+            </NavLink>
+          )}
 
           
         </div>

@@ -23,6 +23,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       .eq("id", userId)
       .single();
 
+    console.log("profile data:", data);
+    console.log("profile error:", error);
+
+
+
+
     if (error) {
       console.error("Error loading profile:", error);
       setProfile(null);
