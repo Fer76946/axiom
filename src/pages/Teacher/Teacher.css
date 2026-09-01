@@ -68,3 +68,74 @@
 .empty-students span {
   color: var(--color-text-secondary);
 }
+
+
+.create-student-card {
+  padding: 28px;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.create-student-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.create-student-card__header h2 {
+  margin: 0;
+}
+
+.close-button {
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  background: transparent;
+  font-size: 1.5rem;
+}
+
+.create-student-form {
+  display: grid;
+  gap: 18px;
+}
+
+.create-student-form label {
+  display: grid;
+  gap: 7px;
+
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.create-student-form input {
+  padding: 12px 14px;
+
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-small);
+
+  color: var(--color-text);
+  background: var(--color-surface-secondary);
+}
+
+.create-student-form input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.create-student-form button[type="submit"] {
+  justify-self: start;
+
+  padding: 12px 18px;
+
+  cursor: pointer;
+  border-radius: var(--radius-small);
+
+  color: white;
+  background: var(--color-primary);
+
+  font-weight: 700;
+}
