@@ -139,3 +139,15 @@
 
   font-weight: 700;
 }
+.copy-student-button {
+  padding: 10px 16px;
+  margin-top: 8px;
+
+  cursor: pointer;
+  border-radius: var(--radius-small);
+
+  color: white;
+  background: var(--color-primary);
+
+  font-weight: 700;
+}
