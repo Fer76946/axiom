@@ -6,6 +6,9 @@ type Student = {
   id: string;
   name: string;
   username: string;
+  subject: string | null;
+  section: string | null;
+  grade: number | null;
 };
 
 function Teacher() {
@@ -13,6 +16,11 @@ function Teacher() {
   const [studentName, setStudentName] = useState("");
   const [message, setMessage] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
+
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [grade, setGrade] = useState("");
+  const [subject, setSubject] = useState("");
+  const [section, setSection] = useState("");
 
   const [createdStudent, setCreatedStudent] = useState<{
     studentName: string;
@@ -22,14 +30,19 @@ function Teacher() {
 
   const loadStudents = useCallback(async () => {
   const { data, error } = await supabase
-    .from("students")
-    .select(`
-      id,
-      name,
-      profiles (
-        username
-      )
-    `);
+  .from("students")
+  .select(`
+    id,
+    name,
+    subject,
+    section,
+    profiles (
+      username
+    ),
+    grades (
+      grade
+    )
+  `);
 
   if (error) {
     console.error("Error loading students:", error);
@@ -41,6 +54,9 @@ function Teacher() {
       id: student.id,
       name: student.name,
       username: student.profiles?.[0]?.username ?? "",
+      subject: student.subject,
+      section: student.section,
+      grade: student.grades?.[0]?.grade ?? null,
     })) ?? []
   );
 }, []);
@@ -75,6 +91,8 @@ async function copyStudentInfo() {
     {
       body: {
         studentName,
+        subject,
+        section,
       },
     },
   );
@@ -91,6 +109,30 @@ async function copyStudentInfo() {
 
   const loadedStudents = await loadStudents();
   setStudents(loadedStudents);
+}
+
+  async function saveGradeForStudent(studentId: string) {
+  const numericGrade = Number(grade);
+
+  if (Number.isNaN(numericGrade)) return;
+
+  const { error } = await supabase
+    .from("grades")
+    .upsert({
+      student_id: studentId,
+      grade: numericGrade,
+    });
+
+  if (error) {
+    console.error("Error saving grade:", error);
+    return;
+  }
+
+  const loadedStudents = await loadStudents();
+  setStudents(loadedStudents);
+
+  setSelectedStudentId(null);
+  setGrade("");
 }
 
   return (
@@ -136,6 +178,28 @@ async function copyStudentInfo() {
                 value={studentName}
                 onChange={(event) => setStudentName(event.target.value)}
                 placeholder="Alice Chen"
+                required
+              />
+            </label>
+
+            <label>
+              Subject
+              <input
+                type="text"
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder="Science"
+                required
+              />
+            </label>
+
+            <label>
+              Section
+              <input
+                type="text"
+                value={section}
+                onChange={(event) => setSection(event.target.value)}
+                placeholder="6A"
                 required
               />
             </label>
@@ -186,12 +250,71 @@ async function copyStudentInfo() {
             {students.map((student) => (
               <div key={student.id} className="student-row">
                 <span>{student.name}</span>
-                <span>{student.username}</span>
+
+                <span>
+                  {student.subject && student.section
+                    ? `${student.subject} - ${student.section}`
+                    : "No class assigned"}
+                </span>
+
+                <span>
+                  {student.grade !== null
+                    ? `${student.grade}`
+                    : "No grade"}
+                </span>
+
+                {selectedStudentId === student.id ? (
+                  <div className="inline-grade-editor">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      value={grade}
+                      onChange={(event) => setGrade(event.target.value)}
+                    />
+
+                    <button
+                      type="button"
+                      className="cancel-grade-button"
+                      onClick={() => {
+                        setSelectedStudentId(null);
+                        setGrade("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      className="save-grade-button"
+                      onClick={() => void saveGradeForStudent(student.id)}
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="add-grade-button"
+                    onClick={() => {
+                      setSelectedStudentId(student.id);
+                      setGrade(
+                        student.grade !== null
+                          ? String(student.grade)
+                          : "",
+                      );
+                    }}
+                  >
+                    Add/Update Grade
+                  </button>
+                )}
               </div>
             ))}
           </div>
         )}
       </div>
+      
     </section>
   );
 }

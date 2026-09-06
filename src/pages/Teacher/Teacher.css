@@ -151,3 +151,134 @@
 
   font-weight: 700;
 }
+
+.student-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.student-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 120px auto;
+  align-items: center;
+  gap: 20px;
+
+  padding: 14px 16px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.add-grade-button {
+  border: none;
+  border-radius: 10px;
+
+  padding: 9px 14px;
+
+  font-weight: 700;
+  cursor: pointer;
+
+  color: white;
+  background: #7547e8;
+}
+
+.add-grade-button:hover {
+  opacity: 0.9;
+}
+
+.grade-form {
+  display: grid;
+  grid-template-columns: 1fr 180px auto;
+  gap: 16px;
+  align-items: end;
+
+  margin-top: 24px;
+  padding: 20px;
+
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+
+  background: #111927;
+}
+
+.grade-form label {
+  display: grid;
+  gap: 8px;
+
+  font-weight: 600;
+}
+
+.grade-form input {
+  width: 100%;
+  padding: 10px 12px;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+
+  background: #0b1220;
+  color: white;
+
+  font: inherit;
+}
+
+.save-grade-button {
+  border: none;
+  border-radius: 10px;
+
+  padding: 11px 16px;
+
+  font-weight: 700;
+  cursor: pointer;
+
+  color: white;
+  background: #7547e8;
+}
+
+.save-grade-button:hover {
+  opacity: 0.9;
+}
+
+.grade-form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.cancel-grade-button {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+
+  padding: 11px 16px;
+
+  cursor: pointer;
+  font-weight: 700;
+
+  color: white;
+  background: transparent;
+}
+
+.cancel-grade-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.inline-grade-editor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inline-grade-editor input {
+  width: 90px;
+  padding: 9px 10px;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+
+  background: #0b1220;
+  color: white;
+
+  font: inherit;
+}
