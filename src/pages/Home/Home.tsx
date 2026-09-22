@@ -1,25 +1,9 @@
 import "./Home.css";
 
-const announcements = [
-  {
-    title: "Math Quiz tomorrow at 10:00 AM",
-    date: "May 20, 2024",
-  },
-  {
-    title: "New assignment posted in Physics",
-    date: "May 18, 2024",
-  },
-  {
-    title: "Axiom Game Night coming soon!",
-    date: "May 15, 2024",
-  },
-];
 
 const quickLinks = [
-  { icon: "▣", label: "My Classes" },
-  { icon: "□", label: "Calendar" },
-  { icon: "▤", label: "Resources" },
-  { icon: "✉", label: "Messages" },
+  { icon: "▣", label: "Grades" },
+  { icon: "□", label: "Axiom" },
 ];
 
 function Home() {
@@ -28,16 +12,15 @@ function Home() {
       <div className="hero">
         <div className="hero__content">
           <p className="hero__eyebrow">
-            Your learning dashboard
+            Axiom
           </p>
 
           <h1 className="hero__title">
-            Welcome back,
-            <span> Fernie! 👋</span>
+            Welcome to <span>Axiom</span>
           </h1>
 
           <p className="hero__description">
-            Keep learning. Keep growing.
+            View your grades and access your classroom tools.
           </p>
 
           <button className="primary-button" type="button">
@@ -68,28 +51,6 @@ function Home() {
       </div>
 
       <div className="dashboard-grid">
-        <article className="dashboard-card">
-          <div className="card-heading">
-            <h2>Announcements</h2>
-            <button type="button">View all</button>
-          </div>
-
-          <div className="announcement-list">
-            {announcements.map((announcement) => (
-              <div
-                className="announcement"
-                key={announcement.title}
-              >
-                <span className="announcement__dot" />
-
-                <div>
-                  <h3>{announcement.title}</h3>
-                  <p>{announcement.date}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
 
         <article className="dashboard-card">
           <div className="card-heading">
