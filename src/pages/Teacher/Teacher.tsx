@@ -5,9 +5,9 @@ import "./Teacher.css";
 type Student = {
   id: string;
   name: string;
-  username: string;
   subject: string | null;
   section: string | null;
+  access_code: string | null;
   grade: number | null;
 };
 
@@ -17,123 +17,129 @@ function Teacher() {
   const [message, setMessage] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
 
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] =
+    useState<string | null>(null);
+
   const [grade, setGrade] = useState("");
   const [subject, setSubject] = useState("");
   const [section, setSection] = useState("");
 
   const [createdStudent, setCreatedStudent] = useState<{
+    studentId: string;
     studentName: string;
-    username: string;
-    password: string;
-} | null>(null);
+    accessCode: string;
+  } | null>(null);
 
   const loadStudents = useCallback(async () => {
-  const { data, error } = await supabase
-  .from("students")
-  .select(`
-    id,
-    name,
-    subject,
-    section,
-    profiles (
-      username
-    ),
-    grades (
-      grade
-    )
-  `);
-
-  if (error) {
-    console.error("Error loading students:", error);
-    return [];
-  }
-
-  return (
-    data?.map((student) => ({
-      id: student.id,
-      name: student.name,
-      username: student.profiles?.[0]?.username ?? "",
-      subject: student.subject,
-      section: student.section,
-      grade: student.grades?.[0]?.grade ?? null,
-    })) ?? []
-  );
-}, []);
-
-useEffect(() => {
-  void loadStudents().then((loadedStudents) => {
-    setStudents(loadedStudents);
-  });
-}, [loadStudents]);
-
-async function copyStudentInfo() {
-  if (!createdStudent) return;
-
-  const text = [
-    createdStudent.studentName,
-    createdStudent.username,
-    createdStudent.password,
-  ].join("\t");
-
-  await navigator.clipboard.writeText(text);
-
-  setMessage("Student info copied.");
-}
-
-  async function handleSubmit(
-  event: React.FormEvent<HTMLFormElement>,
-) {
-  event.preventDefault();
-
-  const { data, error } = await supabase.functions.invoke(
-    "create-student",
-    {
-      body: {
-        studentName,
+    const { data, error } = await supabase
+      .from("students")
+      .select(`
+        id,
+        name,
         subject,
         section,
-      },
-    },
-  );
+        access_code,
+        grades (
+          grade
+        )
+      `)
+      .order("name");
 
-  if (error) {
-    console.error("Create student error:", error);
-    setMessage(`Error: ${error.message}`);
-    return;
+    if (error) {
+      console.error("Error loading students:", error);
+      return [];
+    }
+
+    return (
+      data?.map((student) => ({
+        id: student.id,
+        name: student.name,
+        subject: student.subject,
+        section: student.section,
+        access_code: student.access_code,
+        grade: student.grades?.[0]?.grade ?? null,
+      })) ?? []
+    );
+  }, []);
+
+  useEffect(() => {
+    void loadStudents().then((loadedStudents) => {
+      setStudents(loadedStudents);
+    });
+  }, [loadStudents]);
+
+  async function copyStudentInfo() {
+    if (!createdStudent) return;
+
+    const text = [
+      createdStudent.studentName,
+      createdStudent.accessCode,
+    ].join("\t");
+
+    await navigator.clipboard.writeText(text);
+
+    setMessage("Student info copied.");
   }
 
-  setCreatedStudent(data);
-  setStudentName("");
-  setMessage("Student created successfully.");
+  async function handleSubmit(
+    event: React.FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
 
-  const loadedStudents = await loadStudents();
-  setStudents(loadedStudents);
-}
+    const { data, error } = await supabase.functions.invoke(
+      "create-student",
+      {
+        body: {
+          studentName,
+          subject,
+          section,
+        },
+      },
+    );
+
+    if (error) {
+      console.error("Create student error:", error);
+      setMessage(`Error: ${error.message}`);
+      return;
+    }
+
+    setCreatedStudent(data);
+
+    setStudentName("");
+    setSubject("");
+    setSection("");
+
+    setMessage("Student created successfully.");
+
+    const loadedStudents = await loadStudents();
+    setStudents(loadedStudents);
+  }
 
   async function saveGradeForStudent(studentId: string) {
-  const numericGrade = Number(grade);
+    const numericGrade = Number(grade);
 
-  if (Number.isNaN(numericGrade)) return;
+    if (Number.isNaN(numericGrade)) {
+      return;
+    }
 
-  const { error } = await supabase
-    .from("grades")
-    .upsert({
-      student_id: studentId,
-      grade: numericGrade,
-    });
+    const { error } = await supabase
+      .from("grades")
+      .upsert({
+        student_id: studentId,
+        grade: numericGrade,
+      });
 
-  if (error) {
-    console.error("Error saving grade:", error);
-    return;
+    if (error) {
+      console.error("Error saving grade:", error);
+      return;
+    }
+
+    const loadedStudents = await loadStudents();
+    setStudents(loadedStudents);
+
+    setSelectedStudentId(null);
+    setGrade("");
   }
-
-  const loadedStudents = await loadStudents();
-  setStudents(loadedStudents);
-
-  setSelectedStudentId(null);
-  setGrade("");
-}
 
   return (
     <section className="teacher-page">
@@ -176,7 +182,9 @@ async function copyStudentInfo() {
               <input
                 type="text"
                 value={studentName}
-                onChange={(event) => setStudentName(event.target.value)}
+                onChange={(event) =>
+                  setStudentName(event.target.value)
+                }
                 placeholder="Alice Chen"
                 required
               />
@@ -184,10 +192,13 @@ async function copyStudentInfo() {
 
             <label>
               Subject
+
               <input
                 type="text"
                 value={subject}
-                onChange={(event) => setSubject(event.target.value)}
+                onChange={(event) =>
+                  setSubject(event.target.value)
+                }
                 placeholder="Science"
                 required
               />
@@ -195,10 +206,13 @@ async function copyStudentInfo() {
 
             <label>
               Section
+
               <input
                 type="text"
                 value={section}
-                onChange={(event) => setSection(event.target.value)}
+                onChange={(event) =>
+                  setSection(event.target.value)
+                }
                 placeholder="6A"
                 required
               />
@@ -208,6 +222,7 @@ async function copyStudentInfo() {
               Create Student
             </button>
           </form>
+
           {message && <p>{message}</p>}
         </div>
       )}
@@ -215,15 +230,17 @@ async function copyStudentInfo() {
       {createdStudent && (
         <div className="created-student-result">
           <h3>Student Created</h3>
+
           <p>
-            <strong>Name:</strong> {createdStudent.studentName}
+            <strong>Name:</strong>{" "}
+            {createdStudent.studentName}
           </p>
+
           <p>
-            <strong>Username:</strong> {createdStudent.username}
+            <strong>Access Code:</strong>{" "}
+            {createdStudent.accessCode}
           </p>
-          <p>
-            <strong>Password:</strong> {createdStudent.password}
-          </p>
+
           <button
             type="button"
             onClick={copyStudentInfo}
@@ -231,11 +248,8 @@ async function copyStudentInfo() {
           >
             Copy Student Info
           </button>
-          <p>
-            Save these credentials now. The password cannot be viewed later.
-          </p>
         </div>
-      )}  
+      )}
 
       <div className="students-card">
         <h2>Students</h2>
@@ -243,18 +257,28 @@ async function copyStudentInfo() {
         {students.length === 0 ? (
           <div className="empty-students">
             <p>No students yet.</p>
-            <span>Create your first student to get started.</span>
+            <span>
+              Create your first student to get started.
+            </span>
           </div>
         ) : (
           <div className="student-list">
             {students.map((student) => (
-              <div key={student.id} className="student-row">
+              <div
+                key={student.id}
+                className="student-row"
+              >
                 <span>{student.name}</span>
 
                 <span>
                   {student.subject && student.section
                     ? `${student.subject} - ${student.section}`
                     : "No class assigned"}
+                </span>
+
+                <span>
+                  {student.access_code ??
+                    "No access code"}
                 </span>
 
                 <span>
@@ -271,7 +295,9 @@ async function copyStudentInfo() {
                       max="100"
                       step="0.01"
                       value={grade}
-                      onChange={(event) => setGrade(event.target.value)}
+                      onChange={(event) =>
+                        setGrade(event.target.value)
+                      }
                     />
 
                     <button
@@ -288,7 +314,11 @@ async function copyStudentInfo() {
                     <button
                       type="button"
                       className="save-grade-button"
-                      onClick={() => void saveGradeForStudent(student.id)}
+                      onClick={() =>
+                        void saveGradeForStudent(
+                          student.id,
+                        )
+                      }
                     >
                       Save
                     </button>
@@ -298,7 +328,10 @@ async function copyStudentInfo() {
                     type="button"
                     className="add-grade-button"
                     onClick={() => {
-                      setSelectedStudentId(student.id);
+                      setSelectedStudentId(
+                        student.id,
+                      );
+
                       setGrade(
                         student.grade !== null
                           ? String(student.grade)
@@ -314,7 +347,6 @@ async function copyStudentInfo() {
           </div>
         )}
       </div>
-      
     </section>
   );
 }
