@@ -282,3 +282,21 @@
 
   font: inherit;
 }
+
+.student-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.delete-student-button {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.delete-student-button:hover {
+  background: #b91c1c;
+}

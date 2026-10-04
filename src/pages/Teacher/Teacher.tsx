@@ -140,6 +140,34 @@ function Teacher() {
     setSelectedStudentId(null);
     setGrade("");
   }
+  // here we will delete students
+  async function deleteStudent(studentId: string) {
+  const confirmed = window.confirm(
+    "Are you sure you want to delete this student?",
+  );
+
+  if (!confirmed) return;
+
+  const { error } = await supabase.functions.invoke(
+    "delete-student",
+    {
+      body: {
+        studentId,
+      },
+    },
+  );
+
+  if (error) {
+    console.error("Delete student error:", error);
+    setMessage(`Error: ${error.message}`);
+    return;
+  }
+
+  const loadedStudents = await loadStudents();
+  setStudents(loadedStudents);
+
+  setMessage("Student deleted.");
+}
 
   return (
     <section className="teacher-page">
@@ -324,23 +352,31 @@ function Teacher() {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    className="add-grade-button"
-                    onClick={() => {
-                      setSelectedStudentId(
-                        student.id,
-                      );
+                  <div className="student-actions">
+                    <button
+                      type="button"
+                      className="add-grade-button"
+                      onClick={() => {
+                        setSelectedStudentId(student.id);
 
-                      setGrade(
-                        student.grade !== null
-                          ? String(student.grade)
-                          : "",
-                      );
-                    }}
-                  >
-                    Add/Update Grade
-                  </button>
+                        setGrade(
+                          student.grade !== null
+                            ? String(student.grade)
+                            : "",
+                        );
+                      }}
+                    >
+                      Add/Update Grade
+                    </button>
+
+                    <button
+                      type="button"
+                      className="delete-student-button"
+                      onClick={() => void deleteStudent(student.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
