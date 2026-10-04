@@ -160,11 +160,17 @@
 
 .student-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 120px auto;
+  grid-template-columns:
+    minmax(140px, 1.2fr)
+    minmax(180px, 1fr)
+    140px
+    100px
+    auto;
+
   align-items: center;
   gap: 20px;
 
-  padding: 14px 16px;
+  padding: 16px;
 
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
@@ -285,11 +291,14 @@
 
 .student-actions {
   display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 10px;
+  white-space: nowrap;
 }
 
 .delete-student-button {
-  background: #dc2626;
+  background: hsl(0, 75%, 50%);
   color: white;
   border: none;
   padding: 0.6rem 1rem;
@@ -298,5 +307,15 @@
 }
 
 .delete-student-button:hover {
-  background: #b91c1c;
+  background: hsl(0, 75%, 36%);
+}
+
+@media (max-width: 900px) {
+  .student-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .student-actions {
+    justify-content: flex-start;
+  }
 }

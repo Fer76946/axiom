@@ -2,11 +2,13 @@
   display: grid;
   min-height: calc(100vh - 170px);
   place-items: center;
+
+  padding: 32px 20px;
 }
 
 .login-card {
-  width: min(100%, 420px);
-  padding: 40px;
+  width: min(100%, 920px);
+  padding: 42px;
 
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
@@ -19,8 +21,8 @@
 
 .login-logo {
   display: grid;
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   margin: 0 auto 20px;
   place-items: center;
 
@@ -29,43 +31,89 @@
   color: white;
   background: var(--color-primary);
 
-  font-size: 1.25rem;
+  font-size: 1.3rem;
   font-weight: 800;
 }
 
 .login-card h1 {
   margin: 0 0 8px;
+  font-size: 2rem;
 }
 
 .login-card > p {
-  margin: 0 0 28px;
+  margin: 0;
   color: var(--color-text-secondary);
+}
+
+.login-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+
+  margin-top: 32px;
+}
+
+.login-panel {
+  display: flex;
+  flex-direction: column;
+
+  min-width: 0;
+  padding: 28px;
+
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+
+  background: var(--color-surface-secondary);
+
+  text-align: left;
+}
+
+.login-panel h2 {
+  margin: 0 0 8px;
+
+  font-size: 1.5rem;
+}
+
+.login-panel > p {
+  min-height: 48px;
+  margin: 0 0 24px;
+
+  color: var(--color-text-secondary);
+
+  line-height: 1.45;
 }
 
 .login-form {
   display: grid;
   gap: 18px;
-  text-align: left;
+
+  width: 100%;
 }
 
 .login-form label {
   display: grid;
-  gap: 7px;
+  gap: 8px;
 
   color: var(--color-text);
-  font-size: 0.88rem;
+
+  font-size: 0.9rem;
   font-weight: 600;
 }
 
 .login-form input {
+  box-sizing: border-box;
   width: 100%;
+  min-width: 0;
+
   padding: 13px 14px;
 
   border: 1px solid var(--color-border);
   border-radius: var(--radius-small);
 
   color: var(--color-text);
-  background: var(--color-surface-secondary);
+  background: var(--color-surface);
+
+  font: inherit;
 
   outline: none;
 }
@@ -75,16 +123,22 @@
 }
 
 .login-form button {
+  width: 100%;
   margin-top: 4px;
-  padding: 13px;
+  padding: 13px 16px;
 
   cursor: pointer;
+
+  border: none;
   border-radius: var(--radius-small);
 
   color: white;
   background: var(--color-primary);
 
+  font: inherit;
   font-weight: 700;
+
+  white-space: nowrap;
 }
 
 .login-form button:hover {
@@ -93,6 +147,48 @@
 
 .login-message {
   margin-top: 18px !important;
+
   color: var(--color-primary) !important;
+
   font-size: 0.88rem;
+}
+
+.teacher-panel {
+  order: 1;
+}
+
+.student-panel {
+  order: 2;
+}
+
+@media (max-width: 760px) {
+  .login-page {
+    padding: 24px 16px;
+  }
+
+  .login-card {
+    width: min(100%, 520px);
+    padding: 28px 20px;
+  }
+
+  .login-options {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .student-panel {
+    order: 1;
+  }
+
+  .teacher-panel {
+    order: 2;
+  }
+
+  .login-panel {
+    padding: 22px;
+  }
+
+  .login-panel > p {
+    min-height: auto;
+  }
 }
