@@ -1,174 +1,129 @@
 import { useCallback, useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import type { Student, StudentInput } from "../../domain/types";
+import { formatOverallGrade } from "../../domain/grading";
+import { errorMessage, gradesService, studentsService } from "../../services";
+import AssessmentManager from "../../components/Assessments/AssessmentManager";
 import "./Teacher.css";
-
-type Student = {
-  id: string;
-  name: string;
-  subject: string | null;
-  section: string | null;
-  access_code: string | null;
-  grade: number | null;
-};
-
+const blankStudent: StudentInput = { name: "", subject: "", section: "" };
 function Teacher() {
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [studentName, setStudentName] = useState("");
-  const [message, setMessage] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
-
-  const [selectedStudentId, setSelectedStudentId] =
-    useState<string | null>(null);
-
-  const [grade, setGrade] = useState("");
-  const [subject, setSubject] = useState("");
-  const [section, setSection] = useState("");
-
-  const [createdStudent, setCreatedStudent] = useState<{
-    studentId: string;
-    studentName: string;
-    accessCode: string;
-  } | null>(null);
-
-  const loadStudents = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("students")
-      .select(`
-        id,
-        name,
-        subject,
-        section,
-        access_code,
-        grades (
-          grade
-        )
-      `)
-      .order("name");
-
-    if (error) {
-      console.error("Error loading students:", error);
-      return [];
-    }
-
-    return (
-      data?.map((student) => ({
-        id: student.id,
-        name: student.name,
-        subject: student.subject,
-        section: student.section,
-        access_code: student.access_code,
-        grade: student.grades?.[0]?.grade ?? null,
-      })) ?? []
-    );
-  }, []);
-
-  useEffect(() => {
-    void loadStudents().then((loadedStudents) => {
-      setStudents(loadedStudents);
-    });
-  }, [loadStudents]);
-
-  async function copyStudentInfo() {
-    if (!createdStudent) return;
-
-    const text = [
-      createdStudent.studentName,
-      createdStudent.accessCode,
-    ].join("\t");
-
-    await navigator.clipboard.writeText(text);
-
-    setMessage("Student info copied.");
-  }
-
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
-    event.preventDefault();
-
-    const { data, error } = await supabase.functions.invoke(
-      "create-student",
-      {
-        body: {
-          studentName,
-          subject,
-          section,
-        },
-      },
-    );
-
-    if (error) {
-      console.error("Create student error:", error);
-      setMessage(`Error: ${error.message}`);
-      return;
-    }
-
-    setCreatedStudent(data);
-
-    setStudentName("");
-    setSubject("");
-    setSection("");
-
-    setMessage("Student created successfully.");
-
-    const loadedStudents = await loadStudents();
-    setStudents(loadedStudents);
-  }
-
-  async function saveGradeForStudent(studentId: string) {
-    const numericGrade = Number(grade);
-
-    if (Number.isNaN(numericGrade)) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from("grades")
-      .upsert({
-        student_id: studentId,
-        grade: numericGrade,
-      });
-
-    if (error) {
-      console.error("Error saving grade:", error);
-      return;
-    }
-
-    const loadedStudents = await loadStudents();
-    setStudents(loadedStudents);
-
-    setSelectedStudentId(null);
-    setGrade("");
-  }
-  // here we will delete students
-  async function deleteStudent(studentId: string) {
-  const confirmed = window.confirm(
-    "Are you sure you want to delete this student?",
-  );
-
-  if (!confirmed) return;
-
-  const { error } = await supabase.functions.invoke(
-    "delete-student",
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [form, setForm] = useState(blankStudent);
+  const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState("");
+  const [sectionFilter, setSectionFilter] = useState("");
+  const [editor, setEditor] = useState<
     {
-      body: {
-        studentId,
-      },
-    },
+      studentId: string;
+      kind: "grade" | "class";
+      grade: string;
+      subject: string;
+      section: string;
+    } | null
+  >(null);
+  const [assessmentStudent, setAssessmentStudent] = useState<Student | null>(
+    null,
   );
-
-  if (error) {
-    console.error("Delete student error:", error);
-    setMessage(`Error: ${error.message}`);
-    return;
+  const reload = useCallback(async () => {
+    setStudents(await studentsService.getStudents());
+  }, []);
+  useEffect(() => {
+    let active = true;
+    studentsService.getStudents().then((data) => {
+      if (active) setStudents(data);
+    }).catch((cause) => {
+      if (active) setError(errorMessage(cause));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  async function mutate(work: () => Promise<unknown>, success: string) {
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await work();
+      await reload();
+      setMessage(success);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
   }
-
-  const loadedStudents = await loadStudents();
-  setStudents(loadedStudents);
-
-  setMessage("Student deleted.");
-}
-
+  async function copyCode(student: Student) {
+    try {
+      await navigator.clipboard.writeText(student.accessCode);
+      setMessage(`Code copied for ${student.name}.`);
+      setError("");
+    } catch {
+      setError(
+        "Could not copy automatically. Select the access code and copy it manually.",
+      );
+    }
+  }
+  function create(event: React.FormEvent) {
+    event.preventDefault();
+    void mutate(async () => {
+      const student = await studentsService.createStudent(form);
+      setCreatedStudent(student);
+      setForm(blankStudent);
+      setShowCreateForm(false);
+    }, "Student created.");
+  }
+  function saveEditor(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editor) return;
+    const value = editor;
+    if (
+      value.kind === "grade" &&
+      (value.grade.trim() === "" || !Number.isFinite(Number(value.grade)) ||
+        Number(value.grade) < 0 || Number(value.grade) > 100)
+    ) {
+      setError("Enter a grade between 0 and 100.");
+      return;
+    }
+    void mutate(async () => {
+      if (value.kind === "grade") {
+        await gradesService.updateOverallGrade(
+          value.studentId,
+          Number(value.grade),
+        );
+      } else {await studentsService.updateStudentClass(
+          value.studentId,
+          value.subject,
+          value.section,
+        );}
+      setEditor(null);
+    }, value.kind === "grade" ? "Grade saved." : "Class saved.");
+  }
+  const subjects = [
+    ...new Set(
+      students.map((student) => student.subject).filter((
+        value,
+      ): value is string => !!value),
+    ),
+  ].sort();
+  const sections = [
+    ...new Set(
+      students.filter((student) =>
+        !subjectFilter || student.subject === subjectFilter
+      ).map((student) => student.section).filter((value): value is string =>
+        !!value
+      ),
+    ),
+  ].sort();
+  const visible = students.filter((student) =>
+    (!subjectFilter || student.subject === subjectFilter) &&
+    (!sectionFilter || student.section === sectionFilter)
+  ).sort((a, b) => a.name.localeCompare(b.name));
   return (
     <section className="teacher-page">
       <div className="teacher-header">
@@ -176,215 +131,284 @@ function Teacher() {
           <h1>Teacher Dashboard</h1>
           <p>Manage students and grades.</p>
         </div>
-
         <button
-          type="button"
           className="create-student-button"
+          disabled={busy}
           onClick={() => setShowCreateForm(true)}
         >
           + Create Student
         </button>
       </div>
-
+      {message && <p role="status">{message}</p>}
+      {error && (
+        <p role="alert">
+          {error}{" "}
+          <button
+            disabled={busy}
+            onClick={() => void mutate(reload, "Students refreshed.")}
+          >
+            Retry loading
+          </button>
+        </p>
+      )}
       {showCreateForm && (
-        <div className="create-student-card">
+        <section className="create-student-card">
           <div className="create-student-card__header">
             <h2>Create Student</h2>
-
             <button
-              type="button"
+              disabled={busy}
               className="close-button"
+              aria-label="Close create student form"
               onClick={() => setShowCreateForm(false)}
             >
               ×
             </button>
           </div>
-
-          <form
-            className="create-student-form"
-            onSubmit={handleSubmit}
-          >
-            <label>
-              Student Name
-
-              <input
-                type="text"
-                value={studentName}
-                onChange={(event) =>
-                  setStudentName(event.target.value)
-                }
-                placeholder="Alice Chen"
-                required
-              />
-            </label>
-
-            <label>
-              Subject
-
-              <input
-                type="text"
-                value={subject}
-                onChange={(event) =>
-                  setSubject(event.target.value)
-                }
-                placeholder="Science"
-                required
-              />
-            </label>
-
-            <label>
-              Section
-
-              <input
-                type="text"
-                value={section}
-                onChange={(event) =>
-                  setSection(event.target.value)
-                }
-                placeholder="6A"
-                required
-              />
-            </label>
-
-            <button type="submit">
-              Create Student
-            </button>
+          <form className="create-student-form" onSubmit={create}>
+            <fieldset disabled={busy}>
+              {(["name", "subject", "section"] as const).map((key) => (
+                <label key={key}>
+                  {key === "name"
+                    ? "Student Name"
+                    : key === "subject"
+                    ? "Subject"
+                    : "Section / Class"}
+                  <input
+                    required
+                    maxLength={120}
+                    value={form[key]}
+                    onChange={(e) =>
+                      setForm({ ...form, [key]: e.target.value })}
+                  />
+                </label>
+              ))}
+              <button type="submit">
+                {busy ? "Creating…" : "Create Student"}
+              </button>
+            </fieldset>
           </form>
-
-          {message && <p>{message}</p>}
-        </div>
+        </section>
       )}
-
       {createdStudent && (
         <div className="created-student-result">
-          <h3>Student Created</h3>
-
-          <p>
-            <strong>Name:</strong>{" "}
-            {createdStudent.studentName}
-          </p>
-
-          <p>
-            <strong>Access Code:</strong>{" "}
-            {createdStudent.accessCode}
-          </p>
-
-          <button
-            type="button"
-            onClick={copyStudentInfo}
-            className="copy-student-button"
-          >
-            Copy Student Info
+          <strong>{createdStudent.name}</strong> — Access Code:{" "}
+          <code>{createdStudent.accessCode}</code>{" "}
+          <button onClick={() => void copyCode(createdStudent)}>
+            Copy Code
           </button>
         </div>
       )}
-
-      <div className="students-card">
+      <section className="students-card">
         <h2>Students</h2>
-
-        {students.length === 0 ? (
-          <div className="empty-students">
-            <p>No students yet.</p>
-            <span>
-              Create your first student to get started.
-            </span>
-          </div>
-        ) : (
-          <div className="student-list">
-            {students.map((student) => (
-              <div
-                key={student.id}
-                className="student-row"
-              >
-                <span>{student.name}</span>
-
-                <span>
-                  {student.subject && student.section
-                    ? `${student.subject} - ${student.section}`
-                    : "No class assigned"}
-                </span>
-
-                <span>
-                  {student.access_code ??
-                    "No access code"}
-                </span>
-
-                <span>
-                  {student.grade !== null
-                    ? `${student.grade}`
-                    : "No grade"}
-                </span>
-
-                {selectedStudentId === student.id ? (
-                  <div className="inline-grade-editor">
-                    <input
+        <div className="student-filters">
+          <label>
+            Subject<select
+              value={subjectFilter}
+              onChange={(e) => {
+                setSubjectFilter(e.target.value);
+                setSectionFilter("");
+              }}
+            >
+              <option value="">All subjects</option>
+              {subjects.map((subject) => (
+                <option key={subject}>{subject}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Section / Class<select
+              value={sectionFilter}
+              onChange={(e) => setSectionFilter(e.target.value)}
+            >
+              <option value="">All classes</option>
+              {sections.map((section) => (
+                <option key={section}>{section}</option>
+              ))}
+            </select>
+          </label>
+          <span>{visible.length} student{visible.length === 1 ? "" : "s"}</span>
+        </div>
+        {loading
+          ? <p role="status">Loading students...</p>
+          : visible.length === 0
+          ? (
+            <div className="empty-students">
+              <p>
+                {students.length
+                  ? "No students match these filters."
+                  : error
+                  ? "Student list unavailable."
+                  : "No students yet."}
+              </p>
+            </div>
+          )
+          : (
+            <div className="student-table-wrapper">
+              <table className="student-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Student</th>
+                    <th scope="col">Subject</th>
+                    <th scope="col">Class</th>
+                    <th scope="col">Access Code</th>
+                    <th scope="col">Overall Grade</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map((student) => (
+                    <tr key={student.id}>
+                      <th scope="row">{student.name}</th>
+                      <td>{student.subject || "Unassigned"}</td>
+                      <td>{student.section || "Unassigned"}</td>
+                      <td>
+                        <code>{student.accessCode}</code>
+                      </td>
+                      <td>
+                        {formatOverallGrade(student.overallGrade)}
+                      </td>
+                      <td>
+                        <div className="student-actions">
+                          <button
+                            disabled={busy}
+                            onClick={() => void copyCode(student)}
+                          >
+                            Copy Code
+                          </button>
+                          <button
+                            disabled={busy}
+                            onClick={() =>
+                              setEditor({
+                                studentId: student.id,
+                                kind: "class",
+                                grade: "",
+                                subject: student.subject ?? "",
+                                section: student.section ?? "",
+                              })}
+                          >
+                            Edit Class
+                          </button>
+                          <button
+                            disabled={busy}
+                            onClick={() =>
+                              setEditor({
+                                studentId: student.id,
+                                kind: "grade",
+                                grade: student.overallGrade === null
+                                  ? ""
+                                  : String(student.overallGrade),
+                                subject: "",
+                                section: "",
+                              })}
+                          >
+                            Add/Update Grade
+                          </button>
+                          <button
+                            disabled={busy}
+                            onClick={() => setAssessmentStudent(student)}
+                          >
+                            Assessments
+                          </button>
+                          <button
+                            disabled={busy}
+                            className="delete-student-button"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Delete ${student.name} and their grades?`,
+                                )
+                              ) {
+                                void mutate(async () => {
+                                  await studentsService.deleteStudent(
+                                    student.id,
+                                  );
+                                  if (
+                                    assessmentStudent?.id === student.id
+                                  ) setAssessmentStudent(null);
+                                  if (
+                                    createdStudent?.id === student.id
+                                  ) setCreatedStudent(null);
+                                  if (
+                                    editor?.studentId === student.id
+                                  ) setEditor(null);
+                                }, "Student deleted.");
+                              }
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+      </section>
+      {editor && (
+        <section className="create-student-card">
+          <h2>
+            {editor.kind === "grade" ? "Overall Grade" : "Edit Class"} —{" "}
+            {students.find((student) => student.id === editor.studentId)?.name}
+          </h2>
+          <form className="create-student-form" onSubmit={saveEditor}>
+            <fieldset disabled={busy}>
+              {editor.kind === "grade"
+                ? (
+                  <label>
+                    Percentage<input
+                      required
                       type="number"
                       min="0"
                       max="100"
                       step="0.01"
-                      value={grade}
-                      onChange={(event) =>
-                        setGrade(event.target.value)
-                      }
+                      value={editor.grade}
+                      onChange={(e) =>
+                        setEditor({ ...editor, grade: e.target.value })}
                     />
-
-                    <button
-                      type="button"
-                      className="cancel-grade-button"
-                      onClick={() => {
-                        setSelectedStudentId(null);
-                        setGrade("");
-                      }}
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      type="button"
-                      className="save-grade-button"
-                      onClick={() =>
-                        void saveGradeForStudent(
-                          student.id,
-                        )
-                      }
-                    >
-                      Save
-                    </button>
-                  </div>
-                ) : (
-                  <div className="student-actions">
-                    <button
-                      type="button"
-                      className="add-grade-button"
-                      onClick={() => {
-                        setSelectedStudentId(student.id);
-
-                        setGrade(
-                          student.grade !== null
-                            ? String(student.grade)
-                            : "",
-                        );
-                      }}
-                    >
-                      Add/Update Grade
-                    </button>
-
-                    <button
-                      type="button"
-                      className="delete-student-button"
-                      onClick={() => void deleteStudent(student.id)}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  </label>
+                )
+                : (
+                  <>
+                    <label>
+                      Subject<input
+                        required
+                        maxLength={120}
+                        value={editor.subject}
+                        onChange={(e) =>
+                          setEditor({ ...editor, subject: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Section / Class<input
+                        required
+                        maxLength={120}
+                        value={editor.section}
+                        onChange={(e) =>
+                          setEditor({ ...editor, section: e.target.value })}
+                      />
+                    </label>
+                  </>
                 )}
+              <div className="student-actions">
+                <button type="submit">{busy ? "Saving…" : "Save"}</button>
+                <button type="button" onClick={() => setEditor(null)}>
+                  Cancel
+                </button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </fieldset>
+          </form>
+        </section>
+      )}
+      {assessmentStudent && (
+        <AssessmentManager
+          key={assessmentStudent.id}
+          student={assessmentStudent}
+          onClose={() => setAssessmentStudent(null)}
+        />
+      )}
     </section>
   );
 }
-
 export default Teacher;

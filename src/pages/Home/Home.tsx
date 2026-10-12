@@ -1,5 +1,5 @@
 import "./Home.css";
-
+import { useNavigate } from "react-router-dom";
 
 const quickLinks = [
   { icon: "▣", label: "Grades" },
@@ -7,6 +7,7 @@ const quickLinks = [
 ];
 
 function Home() {
+  const navigate = useNavigate();
   return (
     <section className="home-page">
       <div className="hero">
@@ -23,7 +24,11 @@ function Home() {
             View your grades and access your classroom tools.
           </p>
 
-          <button className="primary-button" type="button">
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => navigate("/grades")}
+          >
             View My Grades
           </button>
         </div>
@@ -51,7 +56,6 @@ function Home() {
       </div>
 
       <div className="dashboard-grid">
-
         <article className="dashboard-card">
           <div className="card-heading">
             <h2>Quick Links</h2>
@@ -63,6 +67,8 @@ function Home() {
                 className="quick-link"
                 type="button"
                 key={link.label}
+                onClick={() =>
+                  navigate(link.label === "Grades" ? "/grades" : "/axiom")}
               >
                 <span className="quick-link__icon">
                   {link.icon}

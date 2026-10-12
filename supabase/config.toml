@@ -1,0 +1,12 @@
+project_id = "axiom"
+
+# Students have opaque Axiom tokens, not Supabase JWTs.
+# Teacher actions explicitly verify Supabase JWTs and profile roles in the handler.
+[functions.axiom-api]
+verify_jwt = false
+[functions.student-login]
+verify_jwt = false
+[functions.create-student]
+verify_jwt = false
+[functions.delete-student]
+verify_jwt = false

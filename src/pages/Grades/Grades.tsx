@@ -1,108 +1,107 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../contexts/useAuth";
+import { errorMessage, gradesService } from "../../services";
+import type { StudentGrades } from "../../domain/types";
+import { formatOverallGrade } from "../../domain/grading";
 import "./Grades.css";
 
-type StudentSession = {
-  studentId: string;
-  studentName: string;
-  subject: string | null;
-  section: string | null;
-};
-
-type GradeRecord = {
-  grade: number | null;
-};
-
 function Grades() {
-  const navigate = useNavigate();
-
-  const storedStudent = sessionStorage.getItem("axiomStudent");
-
-  const student: StudentSession | null = storedStudent
-    ? (JSON.parse(storedStudent) as StudentSession)
-    : null;
-
-  const [grade, setGrade] = useState<number | null>(null);
+  const { studentSession, logout } = useAuth();
+  const [result, setResult] = useState<
+    { token: string; data: StudentGrades } | null
+  >(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-
+  const [attempt, setAttempt] = useState(0);
+  const token = studentSession?.token;
+  const data = result?.token === token ? result?.data : null;
   useEffect(() => {
-    if (!student) {
-      navigate("/login");
-      return;
-    }
-
-    const studentId = student.studentId;
-
-    async function loadGrade() {
-      const { data, error } = await supabase
-        .from("grades")
-        .select("grade")
-        .eq("student_id", studentId)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error loading grade:", error);
-        setMessage("Could not load your grade.");
-        setLoading(false);
-        return;
+    if (!token) return;
+    let active = true;
+    gradesService.getStudentGrades(token).then((result) => {
+      if (active) {
+        setResult({ token, data: result });
+        setMessage("");
       }
-
-      const gradeRecord = data as GradeRecord | null;
-
-      setGrade(gradeRecord?.grade ?? null);
-      setLoading(false);
-    }
-
-    void loadGrade();
-  }, [navigate, student]);
-
-  if (!student) {
-    return null;
-  }
-
-  if (loading) {
-    return (
-      <section className="grades-page">
-        <p>Loading grades...</p>
-      </section>
-    );
-  }
-
+    }).catch((error) => {
+      if (active) setMessage(errorMessage(error));
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [token, attempt]);
+  if (!studentSession) return null;
   return (
     <section className="grades-page">
       <header className="grades-heading">
         <h1>My Grades</h1>
-
-        <p>
-          Welcome, {student.studentName}. View your current class and grade.
-        </p>
+        <p>Student - {data?.student.name ?? studentSession.student.name}</p>
       </header>
-
-      {message && <p>{message}</p>}
-
-      <article className="grade-card">
-        <div className="grade-card__header">
-          <span>Class</span>
-
-          <h2>
-            {student.subject && student.section
-              ? `${student.subject} - ${student.section}`
-              : "No class assigned"}
-          </h2>
+      {loading && <p role="status">Loading grades...</p>}
+      {message && (
+        <div role="alert">
+          <p>{message}</p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              setAttempt(attempt + 1);
+            }}
+          >
+            Try again
+          </button>{" "}
+          <button
+            onClick={() => {
+              void logout().catch(() => undefined);
+            }}
+          >
+            Sign out
+          </button>
         </div>
-
-        <div className="grade-card__current">
-          <span>Current Grade:</span>
-
-          <strong>
-            {grade !== null ? `${grade}%` : "No grade yet"}
-          </strong>
-        </div>
-      </article>
+      )}
+      {data && !message && (
+        <>
+          <article className="grade-card">
+            <div className="grade-card__header">
+              <span>Class</span>
+              <h2>
+                {[data.student.subject, data.student.section].filter(Boolean)
+                  .join(" - ") || "No class assigned"}
+              </h2>
+            </div>
+            <div className="grade-card__current">
+              <span>Overall Grade:</span>
+              <strong>
+                {formatOverallGrade(data.overallGrade)}
+              </strong>
+            </div>
+          </article>
+          <article className="grade-card">
+            <h2>Assessments</h2>
+            {data.assessments.length === 0
+              ? <p>No assessments yet.</p>
+              : (
+                <ul className="assessment-list">
+                  {data.assessments.map((item) => (
+                    <li key={item.id}>
+                      <div>
+                        <strong>{item.title}</strong>
+                        <p>{item.date}</p>
+                      </div>
+                      <span>
+                        {Math.round(item.score / item.maxScore * 1000) / 10}%
+                        {" "}
+                        <small>({item.score}/{item.maxScore})</small>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+          </article>
+        </>
+      )}
     </section>
   );
 }
-
 export default Grades;

@@ -8,14 +8,20 @@ import Teacher from "./pages/Teacher/Teacher";
 import ProtectedRoute from "./routes/ProtectedRoute";
 
 function App() {
-
   return (
     <BrowserRouter>
       <MainLayout>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/grades" element={<Grades />} />
+          <Route
+            path="/grades"
+            element={
+              <ProtectedRoute requiredRole="student">
+                <Grades />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/axiom" element={<Axiom />} />
           <Route path="*" element={<Navigate to="/" replace />} />
           <Route
@@ -26,7 +32,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
         </Routes>
       </MainLayout>
     </BrowserRouter>

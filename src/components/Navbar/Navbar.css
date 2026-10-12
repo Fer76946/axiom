@@ -109,10 +109,7 @@
 
   font-weight: 600;
 
-  transition:
-    background-color .2s,
-    transform .2s,
-    color .2s;
+  transition: background-color 0.2s, transform 0.2s, color 0.2s;
 }
 
 .login-button:hover {
@@ -129,5 +126,42 @@
 
   .navbar__links {
     display: none;
+  }
+}
+.navbar__status {
+  font-size: 0.85rem;
+  max-width: 180px;
+  overflow-wrap: anywhere;
+}
+.navbar__error {
+  margin: 0;
+  padding: 10px 20px;
+  color: var(--color-text);
+}
+@media (max-width: 680px) {
+  .navbar__content {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px 0;
+  }
+  .navbar__links {
+    display: flex;
+    order: 3;
+    width: 100%;
+    justify-content: space-around;
+    gap: 12px;
+  }
+  .navbar__link {
+    padding: 8px 0;
+  }
+  .navbar__actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .navbar__status {
+    max-width: 115px;
+  }
+  .login-button {
+    padding: 8px 10px;
   }
 }

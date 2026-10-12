@@ -11,10 +11,14 @@ function ProtectedRoute({
   children,
   requiredRole,
 }: ProtectedRouteProps) {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, studentSession, loading } = useAuth();
 
   if (loading) {
     return <p>Loading...</p>;
+  }
+
+  if (requiredRole === "student") {
+    return studentSession ? children : <Navigate to="/login" replace />;
   }
 
   if (!user) {

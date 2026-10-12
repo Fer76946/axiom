@@ -1,93 +1,121 @@
-import { useEffect, useState, type ReactNode } from "react";
-import type { User } from "@supabase/supabase-js";
-
-import { supabase } from "../lib/supabase";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { AuthContext } from "./AuthContext";
+import type { StudentSession, TeacherSession } from "../domain/types";
+import { authService, errorMessage } from "../services";
 import {
-  AuthContext,
-  type Profile,
-} from "./AuthContext";
+  clearStudentSession,
+  readStudentSession,
+  saveStudentSession,
+} from "../services/studentSession";
 
-type AuthProviderProps = {
-  children: ReactNode;
-};
-
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [teacher, setTeacher] = useState<TeacherSession>({
+    user: null,
+    profile: null,
+  });
+  const [studentSession, setStudentSession] = useState<StudentSession | null>(
+    readStudentSession,
+  );
   const [loading, setLoading] = useState(true);
-
-  async function loadProfile(userId: string) {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, username, role, created_at")
-      .eq("id", userId)
-      .single();
-
-    console.log("profile data:", data);
-    console.log("profile error:", error);
-
-
-
-
-    if (error) {
-      console.error("Error loading profile:", error);
-      setProfile(null);
-      return;
-    }
-
-    setProfile(data);
-  }
+  const [error, setError] = useState("");
+  const revision = useRef(0);
 
   useEffect(() => {
-    async function getInitialSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      const currentUser = session?.user ?? null;
-
-      setUser(currentUser);
-
-      if (currentUser) {
-        await loadProfile(currentUser.id);
-      } else {
-        setProfile(null);
-      }
-
-      setLoading(false);
-    }
-
-    getInitialSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        const currentUser = session?.user ?? null;
-
-        setUser(currentUser);
-
-        if (currentUser) {
-          await loadProfile(currentUser.id);
-        } else {
-          setProfile(null);
+    let active = true;
+    async function refresh() {
+      const request = ++revision.current;
+      try {
+        const session = await authService.getTeacherSession();
+        if (!active || request !== revision.current) return;
+        setTeacher(session);
+        setError("");
+        if (session.user) {
+          clearStudentSession();
+          setStudentSession(null);
         }
-
-        setLoading(false);
-      },
-    );
-
+      } catch (cause) {
+        if (active && request === revision.current) {
+          setTeacher({ user: null, profile: null });
+          setError(errorMessage(cause));
+        }
+      } finally {
+        if (active && request === revision.current) setLoading(false);
+      }
+    }
+    const unsubscribe = authService.subscribe(() => {
+      void refresh();
+    });
+    void refresh();
     return () => {
-      subscription.unsubscribe();
+      active = false;
+      unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!studentSession) return;
+    const timer = window.setTimeout(() => {
+      clearStudentSession();
+      setStudentSession(null);
+    }, Math.max(0, Date.parse(studentSession.expiresAt) - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [studentSession]);
+
+  async function logout() {
+    if (studentSession) {
+      // Clear the UI immediately even if the revocation request fails.
+      const token = studentSession.token;
+      clearStudentSession();
+      setStudentSession(null);
+      await authService.studentLogout(token);
+    } else {
+      await authService.teacherLogout();
+      ++revision.current;
+      setTeacher({ user: null, profile: null });
+      clearStudentSession();
+      setStudentSession(null);
+    }
+    setError("");
+  }
+
+  async function teacherLogin(email: string, password: string) {
+    const session = await authService.teacherLogin(email, password);
+    // Revoke any previously active student token before replacing that session.
+    if (studentSession) await authService.studentLogout(studentSession.token);
+    ++revision.current;
+    clearStudentSession();
+    setStudentSession(null);
+    setTeacher(session);
+    setError("");
+    return session;
+  }
+
+  async function studentLogin(code: string) {
+    const session = await authService.studentLogin(code);
+    try {
+      await authService.teacherLogout();
+      if (studentSession) await authService.studentLogout(studentSession.token);
+      saveStudentSession(session);
+    } catch (cause) {
+      await authService.studentLogout(session.token).catch(() => undefined);
+      throw cause;
+    }
+    ++revision.current;
+    setTeacher({ user: null, profile: null });
+    setStudentSession(session);
+    setError("");
+  }
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        profile,
+        ...teacher,
+        studentSession,
         loading,
+        error,
+        teacherLogin,
+        studentLogin,
+        logout,
       }}
     >
       {children}

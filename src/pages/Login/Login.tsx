@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { supabase } from "../../lib/supabase";
+import { useAuth } from "../../contexts/useAuth";
+import { errorMessage } from "../../services";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
 
@@ -13,6 +14,8 @@ function Login() {
   const [studentMessage, setStudentMessage] = useState("");
 
   const navigate = useNavigate();
+  const { teacherLogin, studentLogin } = useAuth();
+  const [busy, setBusy] = useState(false);
 
   async function handleTeacherLogin(
     event: React.FormEvent<HTMLFormElement>,
@@ -21,65 +24,34 @@ function Login() {
 
     setTeacherMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setTeacherMessage(error.message);
-      return;
+    setBusy(true);
+    try {
+      await teacherLogin(email.trim(), password);
+      navigate("/teacher", { replace: true });
+    } catch (error) {
+      setTeacherMessage(errorMessage(error));
+    } finally {
+      setBusy(false);
     }
-
-    navigate("/");
   }
 
-  async function handleStudentLogin(
-    event: React.FormEvent<HTMLFormElement>,
-  ) {
+  async function handleStudentLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     setStudentMessage("");
-
     const trimmedCode = accessCode.trim();
-
     if (!/^\d{7}$/.test(trimmedCode)) {
-      setStudentMessage(
-        "Please enter a valid 7-digit access code.",
-      );
+      setStudentMessage("Please enter a valid 7-digit access code.");
       return;
     }
-
-    const { data, error } = await supabase.functions.invoke(
-      "student-login",
-      {
-        body: {
-          accessCode: trimmedCode,
-        },
-      },
-    );
-
-    if (error) {
-      console.error("Student login error:", error);
-
-      setStudentMessage(
-        "Invalid access code. Please try again.",
-      );
-
-      return;
+    setBusy(true);
+    try {
+      await studentLogin(trimmedCode);
+      navigate("/grades", { replace: true });
+    } catch (error) {
+      setStudentMessage(errorMessage(error));
+    } finally {
+      setBusy(false);
     }
-
-    sessionStorage.setItem(
-      "axiomStudent",
-      JSON.stringify({
-        studentId: data.studentId,
-        studentName: data.studentName,
-        subject: data.subject,
-        section: data.section,
-      }),
-    );
-
-    navigate("/grades");
   }
 
   return (
@@ -104,9 +76,7 @@ function Login() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(event) =>
-                    setEmail(event.target.value)
-                  }
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
                   required
                 />
@@ -117,21 +87,19 @@ function Login() {
                 <input
                   type="password"
                   value={password}
-                  onChange={(event) =>
-                    setPassword(event.target.value)
-                  }
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter your password"
                   required
                 />
               </label>
 
-              <button type="submit">
+              <button type="submit" disabled={busy}>
                 Teacher Sign In
               </button>
             </form>
 
             {teacherMessage && (
-              <p className="login-message">
+              <p className="login-message" role="alert">
                 {teacherMessage}
               </p>
             )}
@@ -153,8 +121,7 @@ function Login() {
                   maxLength={7}
                   value={accessCode}
                   onChange={(event) => {
-                    const numbersOnly =
-                      event.target.value.replace(/\D/g, "");
+                    const numbersOnly = event.target.value.replace(/\D/g, "");
 
                     setAccessCode(numbersOnly);
                   }}
@@ -163,13 +130,13 @@ function Login() {
                 />
               </label>
 
-              <button type="submit">
+              <button type="submit" disabled={busy}>
                 Student Sign In
               </button>
             </form>
 
             {studentMessage && (
-              <p className="login-message">
+              <p className="login-message" role="alert">
                 {studentMessage}
               </p>
             )}

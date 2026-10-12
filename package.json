@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.ts",
+    "test:server": "deno test --no-config --node-modules-dir=manual --allow-env supabase/functions/_shared/handler_test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.2",
