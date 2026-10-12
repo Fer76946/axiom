@@ -1,35 +1,48 @@
 :root {
-  --color-primary: #7047eb;
-  --color-primary-dark: #5832d6;
+  color-scheme: light;
+  --color-primary: #6840d9;
+  --color-primary-dark: #5730bf;
   --color-primary-soft: #f0ebff;
-
-  --color-background: #f6f7fb;
+  --color-accent-text: #6840d9;
+  --color-background: #f5f6fb;
   --color-surface: #ffffff;
-  --color-surface-secondary: #fafaff;
-
-  --color-text: #151525;
-  --color-text-secondary: #696979;
-  --color-border: #e7e7ef;
-
-  --shadow-card: 0 12px 35px rgba(31, 28, 58, 0.08);
-
+  --color-surface-secondary: #f8f9fd;
+  --color-surface-raised: #ffffff;
+  --color-text: #202139;
+  --color-text-secondary: #60647c;
+  --color-border: #e3e5ef;
+  --color-border-strong: #cdd0e2;
+  --color-danger: #aa3449;
+  --color-danger-soft: #fff0f2;
+  --color-success: #237659;
+  --color-success-soft: #edf8f2;
+  --shadow-card:
+    0 4px 24px rgba(33, 31, 65, 0.04), 0 1px 3px rgba(33, 31, 65, 0.03);
+  --shadow-focus: 0 0 0 3px rgba(112, 71, 235, 0.14);
   --radius-small: 10px;
   --radius-medium: 16px;
-  --radius-large: 22px;
-
-  --page-width: 1180px;
+  --radius-large: 24px;
+  --page-width: 1280px;
 }
 
 [data-theme="dark"] {
-  --color-background: #080d17;
-  --color-surface: #101722;
-  --color-surface-secondary: #141c29;
-
-  --color-text: #f5f5fa;
-  --color-text-secondary: #a9afbd;
-  --color-border: #252e3d;
-
-  --color-primary-soft: rgba(112, 71, 235, 0.16);
-
-  --shadow-card: 0 12px 35px rgba(0, 0, 0, 0.24);
+  color-scheme: dark;
+  --color-background: #0b0e18;
+  --color-surface: #121624;
+  --color-surface-secondary: #171c2d;
+  --color-surface-raised: #1d2335;
+  --color-text: #eef0fa;
+  --color-text-secondary: #a4abc3;
+  --color-border: #282e43;
+  --color-border-strong: #414962;
+  --color-primary: #7852eb;
+  --color-primary-dark: #8059e6;
+  --color-primary-soft: #25203e;
+  --color-accent-text: #b6a0ff;
+  --color-danger: #f0a1b0;
+  --color-danger-soft: #301e2a;
+  --color-success: #84d6b2;
+  --color-success-soft: #172b26;
+  --shadow-card:
+    0 8px 30px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }

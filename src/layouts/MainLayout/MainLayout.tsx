@@ -8,15 +8,15 @@ type MainLayoutProps = {
 
 function MainLayout({ children }: MainLayoutProps) {
   const [isDarkMode, setIsDarkMode] = useState(() => {
-  return localStorage.getItem("axiom-theme") === "dark";
-});
+    return localStorage.getItem("axiom-theme") === "dark";
+  });
 
   useEffect(() => {
-  const theme = isDarkMode ? "dark" : "light";
+    const theme = isDarkMode ? "dark" : "light";
 
-  document.documentElement.dataset.theme = theme;
-  localStorage.setItem("axiom-theme", theme);
-}, [isDarkMode]);
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("axiom-theme", theme);
+  }, [isDarkMode]);
 
   function toggleTheme() {
     setIsDarkMode((currentMode) => !currentMode);
@@ -24,12 +24,13 @@ function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div className="main-layout">
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <Navbar
         isDarkMode={isDarkMode}
         onThemeToggle={toggleTheme}
       />
 
-      <main className="main-layout__content">
+      <main className="main-layout__content" id="main-content" tabIndex={-1}>
         {children}
       </main>
     </div>

@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Assessment, AssessmentInput, Student } from "../../domain/types";
 import { errorMessage, gradesService } from "../../services";
+import EmptyState from "../EmptyState/EmptyState";
 const emptyForm = (): AssessmentInput => {
   const today = new Date();
   const date = `${today.getFullYear()}-${
@@ -11,6 +12,16 @@ const emptyForm = (): AssessmentInput => {
 export default function AssessmentManager(
   { student, onClose }: { student: Student; onClose: () => void },
 ) {
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    panel.current?.scrollIntoView({
+      block: "start",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+    panel.current?.focus({ preventScroll: true });
+  }, []);
   const [items, setItems] = useState<Assessment[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState<string | null>(null);
@@ -67,6 +78,8 @@ export default function AssessmentManager(
   return (
     <section
       className="students-card assessment-manager"
+      ref={panel}
+      tabIndex={-1}
       aria-label={`Assessments for ${student.name}`}
     >
       <div className="teacher-header">
@@ -74,7 +87,7 @@ export default function AssessmentManager(
         <button disabled={busy} onClick={onClose}>Close</button>
       </div>
       {error && (
-        <p role="alert">
+        <p className="feedback feedback--error" role="alert">
           {error}{" "}
           <button
             onClick={() => {
@@ -88,9 +101,14 @@ export default function AssessmentManager(
         </p>
       )}
       {loading
-        ? <p role="status">Loading assessments...</p>
+        ? <p className="loading-state" role="status">Loading assessments...</p>
         : items.length === 0
-        ? <p>No assessments yet.</p>
+        ? (
+          <EmptyState
+            title="No assessments yet"
+            description="Add a test, quiz, or assignment below. Scores are shown individually to this student."
+          />
+        )
         : (
           <ul className="assessment-list">
             {items.map((item) => (

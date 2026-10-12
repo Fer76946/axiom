@@ -31,7 +31,7 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
   return (
     <header className="navbar">
       <div className="navbar__content">
-        <NavLink className="navbar__brand" to="/">
+        <NavLink className="navbar__brand" to="/" aria-label="Axiom home">
           <span className="navbar__logo">A</span>
           <span>AXIOM</span>
         </NavLink>

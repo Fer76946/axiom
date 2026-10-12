@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Student, StudentInput } from "../../domain/types";
-import { formatOverallGrade } from "../../domain/grading";
+import GradeDisplay from "../../components/GradeDisplay/GradeDisplay";
+import EmptyState from "../../components/EmptyState/EmptyState";
 import { errorMessage, gradesService, studentsService } from "../../services";
 import AssessmentManager from "../../components/Assessments/AssessmentManager";
 import "./Teacher.css";
 const blankStudent: StudentInput = { name: "", subject: "", section: "" };
 function Teacher() {
+  const editorPanel = useRef<HTMLElement>(null);
+  const createPanel = useRef<HTMLElement>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -104,6 +107,25 @@ function Teacher() {
       setEditor(null);
     }, value.kind === "grade" ? "Grade saved." : "Class saved.");
   }
+  useEffect(() => {
+    if (showCreateForm) {
+      createPanel.current?.querySelector<HTMLInputElement>("input")?.focus();
+    }
+  }, [showCreateForm]);
+  const editingId = editor?.studentId;
+  const editingKind = editor?.kind;
+  useEffect(() => {
+    if (!editingId) return;
+    editorPanel.current?.scrollIntoView({
+      block: "center",
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+    editorPanel.current?.querySelector<HTMLInputElement>("input")?.focus({
+      preventScroll: true,
+    });
+  }, [editingId, editingKind]);
   const subjects = [
     ...new Set(
       students.map((student) => student.subject).filter((
@@ -128,8 +150,9 @@ function Teacher() {
     <section className="teacher-page">
       <div className="teacher-header">
         <div>
+          <p className="eyebrow">Classroom workspace</p>
           <h1>Teacher Dashboard</h1>
-          <p>Manage students and grades.</p>
+          <p>A clear view of your students, classes, and progress.</p>
         </div>
         <button
           className="create-student-button"
@@ -139,9 +162,11 @@ function Teacher() {
           + Create Student
         </button>
       </div>
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <p className="feedback feedback--success" role="status">{message}</p>
+      )}
       {error && (
-        <p role="alert">
+        <p className="feedback feedback--error" role="alert">
           {error}{" "}
           <button
             disabled={busy}
@@ -152,14 +177,15 @@ function Teacher() {
         </p>
       )}
       {showCreateForm && (
-        <section className="create-student-card">
+        <section className="create-student-card" ref={createPanel}>
           <div className="create-student-card__header">
             <h2>Create Student</h2>
             <button
               disabled={busy}
               className="close-button"
               aria-label="Close create student form"
-              onClick={() => setShowCreateForm(false)}
+              onClick={() =>
+                setShowCreateForm(false)}
             >
               ×
             </button>
@@ -199,7 +225,19 @@ function Teacher() {
         </div>
       )}
       <section className="students-card">
-        <h2>Students</h2>
+        <div className="section-heading">
+          <div>
+            <h2>Student roster</h2>
+            <p>Manage access, class assignments, and grades.</p>
+          </div>
+          <span className="count-badge">
+            {loading
+              ? "Loading…"
+              : error && students.length === 0
+              ? "Unavailable"
+              : `${students.length} total`}
+          </span>
+        </div>
         <div className="student-filters">
           <label>
             Subject<select
@@ -229,45 +267,61 @@ function Teacher() {
           <span>{visible.length} student{visible.length === 1 ? "" : "s"}</span>
         </div>
         {loading
-          ? <p role="status">Loading students...</p>
+          ? <p className="loading-state" role="status">Loading students...</p>
           : visible.length === 0
           ? (
-            <div className="empty-students">
-              <p>
-                {students.length
-                  ? "No students match these filters."
-                  : error
-                  ? "Student list unavailable."
-                  : "No students yet."}
-              </p>
-            </div>
+            <EmptyState
+              title={students.length
+                ? "No matching students"
+                : error
+                ? "Student list unavailable"
+                : "Your classroom starts here"}
+              description={students.length
+                ? "Try another subject or class to find your students."
+                : error
+                ? "Use Retry loading above to reconnect to your roster."
+                : "Create your first student to share an access code and start recording grades."}
+            />
           )
           : (
-            <div className="student-table-wrapper">
-              <table className="student-table">
+            <div
+              className="student-table-wrapper"
+              tabIndex={0}
+              role="region"
+              aria-label="Student roster"
+            >
+              <table className="student-table" role="table">
+                <caption className="sr-only">
+                  Students with class assignments, access codes, grades, and
+                  management actions
+                </caption>
                 <thead>
-                  <tr>
-                    <th scope="col">Student</th>
-                    <th scope="col">Subject</th>
-                    <th scope="col">Class</th>
-                    <th scope="col">Access Code</th>
-                    <th scope="col">Overall Grade</th>
-                    <th scope="col">Actions</th>
+                  <tr role="row">
+                    <th scope="col" role="columnheader">Student</th>
+                    <th scope="col" role="columnheader">Subject</th>
+                    <th scope="col" role="columnheader">Class</th>
+                    <th scope="col" role="columnheader">Access Code</th>
+                    <th scope="col" role="columnheader">Overall Grade</th>
+                    <th scope="col" role="columnheader">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visible.map((student) => (
-                    <tr key={student.id}>
-                      <th scope="row">{student.name}</th>
-                      <td>{student.subject || "Unassigned"}</td>
-                      <td>{student.section || "Unassigned"}</td>
-                      <td>
+                    <tr key={student.id} role="row">
+                      <th scope="row" role="rowheader">{student.name}</th>
+                      <td data-label="Subject" role="cell">
+                        {student.subject || "Unassigned"}
+                      </td>
+                      <td data-label="Class" role="cell">
+                        {student.section || "Unassigned"}
+                      </td>
+                      <td data-label="Access code" role="cell">
                         <code>{student.accessCode}</code>
                       </td>
-                      <td>
-                        {formatOverallGrade(student.overallGrade)}
+                      <td data-label="Overall grade" role="cell">
+                        <GradeDisplay grade={student.overallGrade} />
                       </td>
-                      <td>
+                      <td data-label="Actions" role="cell">
                         <div className="student-actions">
                           <button
                             disabled={busy}
@@ -290,6 +344,8 @@ function Teacher() {
                           </button>
                           <button
                             disabled={busy}
+                            className="grade-action"
+                            aria-label={`Add or update grade for ${student.name}`}
                             onClick={() =>
                               setEditor({
                                 studentId: student.id,
@@ -301,7 +357,7 @@ function Teacher() {
                                 section: "",
                               })}
                           >
-                            Add/Update Grade
+                            Grade
                           </button>
                           <button
                             disabled={busy}
@@ -347,7 +403,7 @@ function Teacher() {
           )}
       </section>
       {editor && (
-        <section className="create-student-card">
+        <section className="create-student-card" ref={editorPanel}>
           <h2>
             {editor.kind === "grade" ? "Overall Grade" : "Edit Class"} —{" "}
             {students.find((student) => student.id === editor.studentId)?.name}

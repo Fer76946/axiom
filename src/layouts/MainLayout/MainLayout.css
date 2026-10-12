@@ -1,16 +1,19 @@
 .main-layout {
   min-height: 100vh;
 }
-
 .main-layout__content {
-  width: min(calc(100% - 40px), var(--page-width));
+  width: min(calc(100% - 64px), var(--page-width));
   margin: 0 auto;
-  padding: 48px 0 72px;
+  padding: 48px 0 80px;
 }
-
-@media (max-width: 680px) {
+@media (max-width: 780px) {
   .main-layout__content {
-    width: min(calc(100% - 24px), var(--page-width));
-    padding-top: 28px;
+    width: calc(100% - 32px);
+    padding: 32px 0 48px;
+  }
+}
+@media (max-width: 400px) {
+  .main-layout__content {
+    width: calc(100% - 24px);
   }
 }

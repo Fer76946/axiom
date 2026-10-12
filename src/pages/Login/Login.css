@@ -1,194 +1,163 @@
 .login-page {
   display: grid;
-  min-height: calc(100vh - 170px);
+  min-height: calc(100dvh - 200px);
   place-items: center;
-
-  padding: 32px 20px;
+  padding: 12px 0 32px;
 }
-
 .login-card {
-  width: min(100%, 920px);
-  padding: 42px;
-
+  width: min(100%, 940px);
+  padding: 40px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-large);
-
   background: var(--color-surface);
   box-shadow: var(--shadow-card);
-
   text-align: center;
 }
-
 .login-logo {
   display: grid;
-  width: 52px;
-  height: 52px;
-  margin: 0 auto 20px;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 22px;
   place-items: center;
-
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 14px;
-
   color: white;
   background: var(--color-primary);
-
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   font-weight: 800;
 }
-
 .login-card h1 {
-  margin: 0 0 8px;
-  font-size: 2rem;
+  margin: 0 0 10px;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
 }
-
-.login-card > p {
+.login-card > p:not(.eyebrow) {
   margin: 0;
   color: var(--color-text-secondary);
+  font-size: 0.95rem;
 }
-
 .login-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 28px;
-
-  margin-top: 32px;
+  gap: 24px;
+  margin-top: 36px;
 }
-
 .login-panel {
   display: flex;
   flex-direction: column;
-
   min-width: 0;
   padding: 28px;
-
   border: 1px solid var(--color-border);
-  border-radius: 18px;
-
+  border-radius: var(--radius-medium);
   background: var(--color-surface-secondary);
-
   text-align: left;
 }
-
+.login-panel .eyebrow {
+  font-size: 0.65rem;
+  margin-bottom: 12px;
+}
 .login-panel h2 {
-  margin: 0 0 8px;
-
-  font-size: 1.5rem;
+  margin: 0 0 9px;
+  font-size: 1.4rem;
 }
-
-.login-panel > p {
-  min-height: 48px;
-  margin: 0 0 24px;
-
+.login-panel > p:not(.eyebrow):not(.login-message) {
+  margin: 0 0 25px;
   color: var(--color-text-secondary);
-
-  line-height: 1.45;
+  font-size: 0.875rem;
 }
-
 .login-form {
   display: grid;
   gap: 18px;
-
   width: 100%;
 }
-
 .login-form label {
   display: grid;
   gap: 8px;
-
-  color: var(--color-text);
-
-  font-size: 0.9rem;
-  font-weight: 600;
 }
-
 .login-form input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-
-  padding: 13px 14px;
-
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-small);
-
-  color: var(--color-text);
   background: var(--color-surface);
-
-  font: inherit;
-
-  outline: none;
 }
-
-.login-form input:focus {
-  border-color: var(--color-primary);
-}
-
 .login-form button {
   width: 100%;
   margin-top: 4px;
-  padding: 13px 16px;
-
-  cursor: pointer;
-
-  border: none;
-  border-radius: var(--radius-small);
-
+  min-height: 46px;
   color: white;
   background: var(--color-primary);
-
-  font: inherit;
-  font-weight: 700;
-
-  white-space: nowrap;
+  border-color: transparent;
 }
-
-.login-form button:hover {
+.login-form button:hover:not(:disabled) {
   background: var(--color-primary-dark);
+  border-color: transparent;
 }
-
 .login-message {
-  margin-top: 18px !important;
-
-  color: var(--color-primary) !important;
-
-  font-size: 0.88rem;
+  margin: 18px 0 0;
+  padding: 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--color-danger) 25%, var(--color-border));
+  border-radius: var(--radius-small);
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  font-size: 0.85rem;
 }
-
 .teacher-panel {
-  order: 1;
-}
-
-.student-panel {
   order: 2;
 }
-
-@media (max-width: 760px) {
-  .login-page {
-    padding: 24px 16px;
+.student-panel {
+  order: 1;
+  border-color: color-mix(
+    in srgb,
+    var(--color-accent-text) 38%,
+    var(--color-border)
+  );
+  box-shadow: inset 0 3px 0 var(--color-primary);
+}
+.student-panel input {
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: 0.22em;
+  font-variant-numeric: tabular-nums;
+  padding-block: 15px;
+  text-align: center;
+}
+.student-panel input::placeholder {
+  letter-spacing: 0.22em;
+  font-weight: 450;
+}
+.login-hint {
+  margin: 18px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+@media (min-width: 761px) {
+  .student-panel .login-form {
+    margin-top: 16px;
   }
-
+}
+@media (max-width: 760px) {
   .login-card {
-    width: min(100%, 520px);
+    width: min(100%, 540px);
     padding: 28px 20px;
   }
-
   .login-options {
     grid-template-columns: 1fr;
     gap: 20px;
+    margin-top: 28px;
   }
-
   .student-panel {
     order: 1;
   }
-
   .teacher-panel {
     order: 2;
   }
-
   .login-panel {
-    padding: 22px;
+    padding: 24px;
   }
-
-  .login-panel > p {
-    min-height: auto;
+}
+@media (max-width: 390px) {
+  .login-card {
+    padding: 24px 14px;
+  }
+  .login-panel {
+    padding: 20px;
   }
 }

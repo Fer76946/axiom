@@ -99,3 +99,16 @@
   border-radius: 50% 50% 70% 70%;
   background: linear-gradient(#ffdc73, #ff7d4d);
 }
+@media (max-width: 650px) {
+  .axiom-page {
+    min-height: 480px;
+    padding: 32px 20px;
+  }
+  .rocket-illustration {
+    width: 160px;
+    height: 160px;
+  }
+  .rocket {
+    transform: scale(0.75);
+  }
+}

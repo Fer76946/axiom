@@ -16,6 +16,9 @@ function Login() {
   const navigate = useNavigate();
   const { teacherLogin, studentLogin } = useAuth();
   const [busy, setBusy] = useState(false);
+  const [signingInAs, setSigningInAs] = useState<"teacher" | "student" | null>(
+    null,
+  );
 
   async function handleTeacherLogin(
     event: React.FormEvent<HTMLFormElement>,
@@ -23,6 +26,7 @@ function Login() {
     event.preventDefault();
 
     setTeacherMessage("");
+    setSigningInAs("teacher");
 
     setBusy(true);
     try {
@@ -38,6 +42,7 @@ function Login() {
   async function handleStudentLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStudentMessage("");
+    setSigningInAs("student");
     const trimmedCode = accessCode.trim();
     if (!/^\d{7}$/.test(trimmedCode)) {
       setStudentMessage("Please enter a valid 7-digit access code.");
@@ -59,53 +64,13 @@ function Login() {
       <div className="login-card">
         <div className="login-logo">A</div>
 
+        <p className="eyebrow">Your classroom, connected</p>
         <h1>Welcome to Axiom</h1>
         <p>Choose how you want to sign in.</p>
 
         <div className="login-options">
-          <div className="login-panel teacher-panel">
-            <h2>Teacher</h2>
-            <p>Sign in with your teacher account.</p>
-
-            <form
-              className="login-form"
-              onSubmit={handleTeacherLogin}
-            >
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="you@example.com"
-                  required
-                />
-              </label>
-
-              <label>
-                Password
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
-                  required
-                />
-              </label>
-
-              <button type="submit" disabled={busy}>
-                Teacher Sign In
-              </button>
-            </form>
-
-            {teacherMessage && (
-              <p className="login-message" role="alert">
-                {teacherMessage}
-              </p>
-            )}
-          </div>
-
           <div className="login-panel student-panel">
+            <p className="eyebrow">Your learning space</p>
             <h2>Student</h2>
             <p>Enter your 7-digit access code.</p>
 
@@ -118,6 +83,9 @@ function Login() {
                 <input
                   type="text"
                   inputMode="numeric"
+                  name="accessCode"
+                  autoComplete="off"
+                  aria-describedby="access-code-hint"
                   maxLength={7}
                   value={accessCode}
                   onChange={(event) => {
@@ -131,13 +99,68 @@ function Login() {
               </label>
 
               <button type="submit" disabled={busy}>
-                Student Sign In
+                {busy && signingInAs === "student"
+                  ? "Signing in…"
+                  : "Student Sign In"}
               </button>
             </form>
+
+            <p className="login-hint" id="access-code-hint">
+              Use the code shared by your teacher. No email or password needed.
+            </p>
 
             {studentMessage && (
               <p className="login-message" role="alert">
                 {studentMessage}
+              </p>
+            )}
+          </div>
+
+          <div className="login-panel teacher-panel">
+            <p className="eyebrow">Manage your classroom</p>
+            <h2>Teacher</h2>
+            <p>Sign in with your teacher account.</p>
+
+            <form
+              className="login-form"
+              onSubmit={handleTeacherLogin}
+            >
+              <label>
+                Email
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="username"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="you@example.com"
+                  required
+                />
+              </label>
+
+              <label>
+                Password
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Enter your password"
+                  required
+                />
+              </label>
+
+              <button type="submit" disabled={busy}>
+                {busy && signingInAs === "teacher"
+                  ? "Signing in…"
+                  : "Teacher Sign In"}
+              </button>
+            </form>
+
+            {teacherMessage && (
+              <p className="login-message" role="alert">
+                {teacherMessage}
               </p>
             )}
           </div>

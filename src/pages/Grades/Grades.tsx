@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/useAuth";
 import { errorMessage, gradesService } from "../../services";
 import type { StudentGrades } from "../../domain/types";
-import { formatOverallGrade } from "../../domain/grading";
+import GradeDisplay from "../../components/GradeDisplay/GradeDisplay";
+import EmptyState from "../../components/EmptyState/EmptyState";
 import "./Grades.css";
 
 function Grades() {
@@ -36,12 +37,21 @@ function Grades() {
   return (
     <section className="grades-page">
       <header className="grades-heading">
-        <h1>My Grades</h1>
-        <p>Student - {data?.student.name ?? studentSession.student.name}</p>
+        <span className="student-avatar" aria-hidden="true">
+          {(data?.student.name ?? studentSession.student.name).slice(0, 1)
+            .toUpperCase()}
+        </span>
+        <div>
+          <p className="eyebrow">Your classroom</p>
+          <h1>My Grades</h1>
+          <p>{data?.student.name ?? studentSession.student.name} · Student</p>
+        </div>
       </header>
-      {loading && <p role="status">Loading grades...</p>}
+      {loading && (
+        <p className="loading-state" role="status">Loading grades...</p>
+      )}
       {message && (
-        <div role="alert">
+        <div className="feedback feedback--error" role="alert">
           <p>{message}</p>
           <button
             onClick={() => {
@@ -61,26 +71,38 @@ function Grades() {
         </div>
       )}
       {data && !message && (
-        <>
+        <div className="grades-grid">
           <article className="grade-card">
             <div className="grade-card__header">
-              <span>Class</span>
+              <span>Assigned class</span>
               <h2>
                 {[data.student.subject, data.student.section].filter(Boolean)
                   .join(" - ") || "No class assigned"}
               </h2>
             </div>
             <div className="grade-card__current">
-              <span>Overall Grade:</span>
-              <strong>
-                {formatOverallGrade(data.overallGrade)}
-              </strong>
+              <span>Overall grade</span>
+              <GradeDisplay grade={data.overallGrade} />
             </div>
+            <p className="grade-card__note">
+              Your current overall grade, entered by your teacher.
+            </p>
           </article>
-          <article className="grade-card">
-            <h2>Assessments</h2>
+          <article className="grade-card assessments-card">
+            <div className="section-heading">
+              <div>
+                <h2>Assessments</h2>
+                <p>Individual tests, quizzes, and assignments.</p>
+              </div>
+              <span className="count-badge">{data.assessments.length}</span>
+            </div>
             {data.assessments.length === 0
-              ? <p>No assessments yet.</p>
+              ? (
+                <EmptyState
+                  title="Your learning record starts here"
+                  description="Test and assignment scores will appear here when your teacher adds them."
+                />
+              )
               : (
                 <ul className="assessment-list">
                   {data.assessments.map((item) => (
@@ -89,7 +111,7 @@ function Grades() {
                         <strong>{item.title}</strong>
                         <p>{item.date}</p>
                       </div>
-                      <span>
+                      <span className="assessment-score">
                         {Math.round(item.score / item.maxScore * 1000) / 10}%
                         {" "}
                         <small>({item.score}/{item.maxScore})</small>
@@ -99,7 +121,7 @@ function Grades() {
                 </ul>
               )}
           </article>
-        </>
+        </div>
       )}
     </section>
   );

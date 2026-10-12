@@ -1,6 +1,5 @@
-export function formatOverallGrade(grade: number | null): string {
-  if (grade === null) return "No grade yet";
-  const letter = grade >= 90
+export function getLetterGrade(grade: number): string {
+  return grade >= 90
     ? "A"
     : grade >= 80
     ? "B"
@@ -9,5 +8,9 @@ export function formatOverallGrade(grade: number | null): string {
     : grade >= 60
     ? "D"
     : "F";
-  return `${grade}% (${letter})`;
+}
+export function formatOverallGrade(grade: number | null): string {
+  return grade === null
+    ? "No grade yet"
+    : `${grade}% (${getLetterGrade(grade)})`;
 }
