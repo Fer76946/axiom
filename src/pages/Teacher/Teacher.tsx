@@ -19,6 +19,7 @@ function Teacher() {
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
   const [subjectFilter, setSubjectFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
+  const [showOverallGrades, setShowOverallGrades] = useState(true);
   const [editor, setEditor] = useState<
     {
       studentId: string;
@@ -141,11 +142,23 @@ function Teacher() {
         !!value
       ),
     ),
-  ].sort();
+  ].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+  );
   const visible = students.filter((student) =>
     (!subjectFilter || student.subject === subjectFilter) &&
     (!sectionFilter || student.section === sectionFilter)
-  ).sort((a, b) => a.name.localeCompare(b.name));
+  ).sort((a, b) => {
+    const classA = a.section?.trim() ?? "";
+    const classB = b.section?.trim() ?? "";
+    if (!classA && classB) return 1;
+    if (classA && !classB) return -1;
+    return classA.localeCompare(classB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    }) ||
+      a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
   return (
     <section className="teacher-page">
       <div className="teacher-header">
@@ -264,6 +277,14 @@ function Teacher() {
               ))}
             </select>
           </label>
+          <label className="grade-visibility-toggle">
+            <input
+              type="checkbox"
+              checked={showOverallGrades}
+              onChange={(event) => setShowOverallGrades(event.target.checked)}
+            />
+            Show overall grades
+          </label>
           <span>{visible.length} student{visible.length === 1 ? "" : "s"}</span>
         </div>
         {loading
@@ -301,7 +322,9 @@ function Teacher() {
                     <th scope="col" role="columnheader">Subject</th>
                     <th scope="col" role="columnheader">Class</th>
                     <th scope="col" role="columnheader">Access Code</th>
-                    <th scope="col" role="columnheader">Overall Grade</th>
+                    {showOverallGrades && (
+                      <th scope="col" role="columnheader">Overall Grade</th>
+                    )}
                     <th scope="col" role="columnheader">Actions</th>
                   </tr>
                 </thead>
@@ -318,9 +341,11 @@ function Teacher() {
                       <td data-label="Access code" role="cell">
                         <code>{student.accessCode}</code>
                       </td>
-                      <td data-label="Overall grade" role="cell">
-                        <GradeDisplay grade={student.overallGrade} />
-                      </td>
+                      {showOverallGrades && (
+                        <td data-label="Overall grade" role="cell">
+                          <GradeDisplay grade={student.overallGrade} />
+                        </td>
+                      )}
                       <td data-label="Actions" role="cell">
                         <div className="student-actions">
                           <button
