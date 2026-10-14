@@ -81,6 +81,14 @@ export default function AssessmentManager(
       ref={panel}
       tabIndex={-1}
       aria-label={`Assessments for ${student.name}`}
+      onKeyDown={event => {
+        if (event.key === "Escape" && !event.nativeEvent.isComposing && editing && !busy) {
+          event.preventDefault();
+          event.stopPropagation();
+          setEditing(null);
+          setForm(emptyForm());
+        }
+      }}
     >
       <div className="teacher-header">
         <h2>Assessments — {student.name}</h2>

@@ -380,7 +380,7 @@ function Teacher() {
                                 section: student.section ?? "",
                               })}
                           >
-                            Edit Class
+                            Edit Subject / Class
                           </button>
                           <button
                             disabled={busy}
@@ -443,9 +443,15 @@ function Teacher() {
           )}
       </section>
       {editor && (
-        <section className="create-student-card" ref={editorPanel}>
+        <section className="create-student-card" ref={editorPanel} onKeyDown={event => {
+          if (event.key === "Escape" && !event.nativeEvent.isComposing && !busy) {
+            event.preventDefault();
+            event.stopPropagation();
+            setEditor(null);
+          }
+        }}>
           <h2>
-            {editor.kind === "grade" ? "Overall Grade" : "Edit Class"} —{" "}
+            {editor.kind === "grade" ? "Overall Grade" : "Edit Subject / Class"} —{" "}
             {students.find((student) => student.id === editor.studentId)?.name}
           </h2>
           <form className="create-student-form" onSubmit={saveEditor}>
