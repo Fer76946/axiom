@@ -4,6 +4,7 @@ import GradeDisplay from "../../components/GradeDisplay/GradeDisplay";
 import EmptyState from "../../components/EmptyState/EmptyState";
 import { errorMessage, gradesService, studentsService } from "../../services";
 import AssessmentManager from "../../components/Assessments/AssessmentManager";
+import StudentCsvTools from "../../components/Students/StudentCsvTools";
 import "./Teacher.css";
 const blankStudent: StudentInput = { name: "", subject: "", section: "" };
 function Teacher() {
@@ -175,6 +176,14 @@ function Teacher() {
           + Create Student
         </button>
       </div>
+      <StudentCsvTools
+        students={students}
+        disabled={busy || loading}
+        subject={subjectFilter}
+        section={sectionFilter}
+        onBusyChange={setBusy}
+        onChanged={reload}
+      />
       {message && (
         <p className="feedback feedback--success" role="status">{message}</p>
       )}

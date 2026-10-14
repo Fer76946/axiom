@@ -14,6 +14,8 @@ export const studentsService = {
   getStudents: provider.getStudents,
   getStudentById: provider.getStudentById,
   createStudent: provider.createStudent,
+  importStudents: provider.importStudents,
+  exportStudents: provider.exportStudents,
   deleteStudent: provider.deleteStudent,
   updateStudentClass: provider.updateStudentClass,
 };

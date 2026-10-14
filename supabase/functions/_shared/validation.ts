@@ -21,7 +21,18 @@ export function uuid(value: unknown): string {
       value,
     )
   ) throw new HttpError(400, "Invalid record ID.");
-  return value;
+  return value.toLowerCase();
+}
+export function studentInput(body: Record<string, unknown>) {
+  return {
+    name: text(body.name, "Student name").normalize("NFC"),
+    subject: text(body.subject, "Subject").normalize("NFC"),
+    section: text(body.section, "Class").normalize("NFC"),
+  };
+}
+// A name collision is a warning to resolve identity, never a student identifier.
+export function studentNameKey(name: string) {
+  return name.trim().normalize("NFC").toLocaleLowerCase("en-US");
 }
 export function number(
   value: unknown,

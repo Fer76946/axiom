@@ -1,0 +1,36 @@
+.student-csv { display: grid; gap: 16px; }
+.student-csv__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.student-csv__panel {
+  min-width: 0;
+  padding: 26px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-medium);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+.student-csv__panel h2 { margin: 0 0 12px; font-size: 1.2rem; }
+.student-csv__panel p { color: var(--color-text-secondary); font-size: 0.875rem; overflow-wrap: anywhere; }
+.student-csv__panel > .student-csv__actions:last-child { margin-top: 20px; }
+.student-csv__panel fieldset { margin-block: 20px; gap: 12px; }
+.student-csv__panel legend { margin-bottom: 12px; font-weight: 600; }
+.student-csv__choice { display: flex; align-items: center; gap: 9px; }
+.student-csv__choice input { width: 18px; height: 18px; min-height: 0; margin: 0; flex-shrink: 0; accent-color: var(--color-primary); }
+.student-csv__upload { display: grid; gap: 6px; min-width: 0; }
+.student-csv__upload input { max-width: 100%; }
+.student-csv__primary { color: #fff; background: var(--color-primary); border-color: transparent; }
+.student-csv__primary:hover:not(:disabled) { background: var(--color-primary-dark); border-color: transparent; }
+.student-csv__preview { max-height: 420px; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-small); margin-block: 16px; }
+.student-csv__preview table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.student-csv__preview th, .student-csv__preview td { padding: 12px; border-bottom: 1px solid var(--color-border); text-align: left; vertical-align: top; min-width: 90px; }
+.student-csv__preview th { position: sticky; top: 0; z-index: 1; background: var(--color-surface-secondary); }
+.student-csv__preview td:last-child { min-width: 240px; max-width: 380px; }
+.student-csv__preview td { overflow-wrap: anywhere; }
+.student-csv__preview td p { margin: 0 0 10px; }
+.student-csv__error { color: var(--color-danger); }
+.student-csv progress { width: 100%; accent-color: var(--color-primary); }
+.student-csv__scroll-hint { display: none; }
+@media (max-width: 650px) {
+  .student-csv__panel { padding: 20px 16px; }
+  .student-csv__upload { width: 100%; }
+  .student-csv__scroll-hint { display: block; }
+}

@@ -6,6 +6,8 @@ import {
   HttpError,
   number,
   randomHex,
+  studentInput,
+  studentNameKey,
   text,
   uuid,
   validAccessCode,
@@ -37,6 +39,7 @@ type StudentRow = {
   access_code: string;
   grades?: { grade: number | null }[];
 };
+type StudentIdentityRow = Pick<StudentRow, "id" | "name" | "subject" | "section">;
 type AssessmentRow = {
   id: string;
   student_id: string;
@@ -45,7 +48,7 @@ type AssessmentRow = {
   max_score: number;
   date: string;
 };
-const identity = (row: StudentRow) => ({
+const identity = (row: StudentIdentityRow) => ({
   id: row.id,
   name: row.name,
   subject: row.subject,
@@ -191,6 +194,101 @@ export function createHandler(fixedAction?: string) {
         throw new HttpError(403, "Teacher access required.");
       }
 
+      // Manual and CSV creation share validation, secure codes, and collision retries.
+      async function createStudentRecord(
+        input: ReturnType<typeof studentInput>,
+        id: string = crypto.randomUUID(),
+        idempotent = false,
+      ) {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const { data, error } = await db.from("students").insert({
+            ...input, id, access_code: generateAccessCode(),
+          }).select("id, name, subject, section, access_code").single();
+          if (!error) return { row: data as StudentRow, created: true };
+          if (error.code !== "23505") check(error);
+          if (idempotent) {
+            // The primary key makes retries/concurrent copies of a CSV row safe.
+            const { data: existing, error: readError } = await db.from("students")
+              .select("id, name, subject, section, access_code").eq("id", id).maybeSingle();
+            check(readError);
+            if (existing) {
+              if (!matches(existing, input)) throw new HttpError(409, "Student ID already exists with different details. No changes made.");
+              return { row: existing as StudentRow, created: false };
+            }
+          }
+        }
+        throw new HttpError(503, "Could not allocate an access code. Please try again.");
+      }
+      function matches(row: Pick<StudentRow, "name" | "subject" | "section">, input: ReturnType<typeof studentInput>) {
+        return row.name === input.name && row.subject === input.subject && row.section === input.section;
+      }
+      async function readRoster(subject?: string, section?: string) {
+        const roster: StudentIdentityRow[] = [];
+        // Supabase caps responses; page explicitly so exports and duplicate checks include every student.
+        for (let offset = 0; ; offset += 1000) {
+          let query = db.from("students").select("id, name, subject, section").order("id").range(offset, offset + 999);
+          if (subject) query = query.eq("subject", subject);
+          if (section) query = query.eq("section", section);
+          const { data, error } = await query;
+          check(error);
+          roster.push(...(data ?? []) as StudentIdentityRow[]);
+          if ((data?.length ?? 0) < 1000) return roster;
+        }
+      }
+      if (action === "exportStudents") {
+        const subject = body.subject === undefined || body.subject === "" ? undefined : text(body.subject, "Subject");
+        const section = body.section === undefined || body.section === "" ? undefined : text(body.section, "Class");
+        // Export has its own teacher authorization and never selects credentials.
+        return response((await readRoster(subject, section)).map(identity));
+      }
+      if (action === "importStudents") {
+        if (!Array.isArray(body.records) || !body.records.length || body.records.length > 25) {
+          throw new HttpError(400, "Import between 1 and 25 records per request.");
+        }
+        const roster = await readRoster();
+        const results = [];
+        for (const value of body.records) {
+          const resultId = typeof value?.id === "string" ? value.id : "";
+          try {
+            if (!value || typeof value !== "object" || Array.isArray(value)) throw new HttpError(400, "Invalid student row.");
+            const requestId = uuid(value.id);
+            const input = studentInput(value);
+            let targetId: string;
+            if (value.studentId !== undefined) {
+              targetId = uuid(value.studentId);
+              const existing = roster.find(row => row.id === targetId);
+              if (!existing) throw new HttpError(404, "Student ID not found. Leave it blank for a new student.");
+              if (!matches(existing, input)) throw new HttpError(409, "Existing student differs. Use Edit Class in the roster; imports never overwrite records.");
+              results.push({ id: resultId, status: "existing", message: "Already in roster; unchanged." });
+              continue;
+            }
+            if (value.confirmDistinct === true) {
+              // Explicit identity resolution permits different students who share a name.
+              targetId = requestId;
+            } else {
+              // A full-record retry key, not a name-based identity or an access credential.
+              const hash = await hashToken("axiom-csv-v1:" + JSON.stringify(input));
+              targetId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-8${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+            }
+            const existing = roster.find(row => row.id === targetId);
+            if (existing) {
+              if (!matches(existing, input)) throw new HttpError(409, "Student ID already exists with different details. No changes made.");
+              results.push({ id: resultId, status: "existing", message: "Already imported; unchanged." });
+              continue;
+            }
+            if (value.confirmDistinct !== true && roster.some(row => studentNameKey(row.name) === studentNameKey(input.name))) {
+              throw new HttpError(409, "Name already in roster. Use the existing student ID, or confirm this is a different student.");
+            }
+            const created = await createStudentRecord(input, targetId, true);
+            roster.push(created.row);
+            results.push({ id: resultId, status: created.created ? "created" : "existing", message: created.created ? "Imported." : "Already imported; unchanged." });
+          } catch (cause) {
+            results.push({ id: resultId, status: "error", message: cause instanceof HttpError ? cause.message : "Could not import this row. Retry the same preview safely." });
+          }
+        }
+        return response(results);
+      }
+
       if (action === "getStudents" || action === "getStudentById") {
         let query = db.from("students").select(
           "id, name, subject, section, access_code, grades(grade)",
@@ -207,24 +305,7 @@ export function createHandler(fixedAction?: string) {
         return response((data ?? []).map(student));
       }
       if (action === "createStudent") {
-        const input = {
-          name: text(body.name, "Student name"),
-          subject: text(body.subject, "Subject"),
-          section: text(body.section, "Class"),
-        };
-        for (let attempt = 0; attempt < 10; attempt++) {
-          const { data, error } = await db.from("students").insert({
-            ...input,
-            id: crypto.randomUUID(),
-            access_code: generateAccessCode(),
-          }).select("id, name, subject, section, access_code").single();
-          if (!error) return response(student(data));
-          if (error.code !== "23505") check(error);
-        }
-        throw new HttpError(
-          503,
-          "Could not allocate an access code. Please try again.",
-        );
+        return response(student((await createStudentRecord(studentInput(body))).row));
       }
       if (action === "deleteStudent") {
         // Delete grades, assessments and sessions atomically while preserving unknown existing FK behavior.

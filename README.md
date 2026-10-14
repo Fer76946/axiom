@@ -148,6 +148,62 @@ cannot be assigned through browser writes. New students only create `students`
 rows. Legacy student Auth accounts, if present remotely, are left intact pending
 a separate reviewed cleanup.
 
+## CSV student rosters
+
+Use **Import Students** in the Teacher Dashboard, download the template, and
+save the completed file as **CSV UTF-8** in Excel. Columns are
+`student_id,name,subject,section`; `student_id` is optional for new students.
+Names, subjects, and sections are required and limited to 120 characters.
+Files can contain up to 1,000 students and be at most 2 MB. Quoted commas,
+quotes, multiline cells, Chinese names, accented names, UTF-8 BOM, and CRLF
+are supported. Review the preview before importing. Invalid rows are skipped
+and reported, and each server batch independently validates every record.
+
+To reference an existing student, use its UUID from an export. An unchanged
+record is skipped; a changed record is rejected without overwriting anything.
+The current model supports one subject/section assignment per student. Use the
+existing **Edit Class** action to change it; multiple rows/classes for one
+student ID do not create more accounts. Simultaneous enrollment in several
+classes would require a separately designed enrollment model and is outside
+this change.
+
+Repeated names trigger an identity warning, not an automatic name-based merge.
+Use the existing ID for the same person, or check **This is a different
+student** only when creating another person with the same name. A duplicate
+row is unresolved by default; this confirmation deliberately permits separate
+people even when their names and assignments match.
+
+New imports share manual creation's cryptographic code generator and existing
+unique-code constraint/retry logic. Ordinary CSV rows get a deterministic UUID
+retry key from their complete normalized name/subject/section, not their name
+alone. Explicitly confirmed distinct students use a random UUID retained in
+the preview. Primary-key conflicts are checked against the existing record:
+retries (including lost responses and concurrent identical CSV rows) return
+unchanged results rather than regenerating access codes or creating copies.
+No unique constraint on names is introduced. Keep the same preview to retry
+failed/unconfirmed rows; payloads are frozen after import begins.
+
+Imports run in batches of 25, show progress, and can stop after the current
+batch. Completed inserts are retained; stopping is not a rollback. Results
+identify imported, unchanged, invalid, failed/unconfirmed, and pending rows.
+There is no automatic retry or overwrite.
+
+**Export Students** downloads either the whole roster or the current
+subject/section filters. The server checks teacher authorization again and
+paginates all selected records. Exports include only UUID, name, subject, and
+section; no access codes, passwords, grades, or tokens. UTF-8 BOM, CRLF,
+CSV escaping, and Excel formula-injection protection are applied. Existing
+individual access-code copying remains available for private distribution.
+
+This feature needs **no database migration or RLS changes**. Deploy the updated
+`axiom-api` and `create-student` Edge Functions with the frontend; existing
+student authentication and other operations remain compatible. These functions
+were verified locally with mocked database responses, not deployed by this
+change. Automated CSV tests check Excel-compatible encoding/escaping. A fixture
+export was also opened in Microsoft Excel on macOS using UTF-8/comma settings:
+four columns, Chinese names, and accented names were verified. Live Supabase
+and production deployment checks remain part of staging verification.
+
 ## MVP navigation
 
 The homepage (`/`) uses the existing student access-code and teacher

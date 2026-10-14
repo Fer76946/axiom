@@ -11,6 +11,16 @@ export type Student = StudentIdentity & {
   overallGrade: number | null;
 };
 export type StudentInput = { name: string; subject: string; section: string };
+export type StudentImportRecord = StudentInput & {
+  id: string;
+  studentId?: string;
+  confirmDistinct: boolean;
+};
+export type StudentImportResult = {
+  id: string;
+  status: "created" | "existing" | "error";
+  message: string;
+};
 export type Assessment = {
   id: string;
   studentId: string;
