@@ -253,29 +253,35 @@ function Teacher() {
         </div>
         <div className="student-filters">
           <label>
-            Subject<select
-              value={subjectFilter}
-              onChange={(e) => {
-                setSubjectFilter(e.target.value);
-                setSectionFilter("");
-              }}
-            >
-              <option value="">All subjects</option>
-              {subjects.map((subject) => (
-                <option key={subject}>{subject}</option>
-              ))}
-            </select>
+            Subject
+            <span className="student-filter-select">
+              <select
+                value={subjectFilter}
+                onChange={(e) => {
+                  setSubjectFilter(e.target.value);
+                  setSectionFilter("");
+                }}
+              >
+                <option value="">All subjects</option>
+                {subjects.map((subject) => (
+                  <option key={subject}>{subject}</option>
+                ))}
+              </select>
+            </span>
           </label>
           <label>
-            Section / Class<select
-              value={sectionFilter}
-              onChange={(e) => setSectionFilter(e.target.value)}
-            >
-              <option value="">All classes</option>
-              {sections.map((section) => (
-                <option key={section}>{section}</option>
-              ))}
-            </select>
+            Section / Class
+            <span className="student-filter-select">
+              <select
+                value={sectionFilter}
+                onChange={(e) => setSectionFilter(e.target.value)}
+              >
+                <option value="">All classes</option>
+                {sections.map((section) => (
+                  <option key={section}>{section}</option>
+                ))}
+              </select>
+            </span>
           </label>
           <label className="grade-visibility-toggle">
             <input

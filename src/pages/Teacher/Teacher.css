@@ -101,7 +101,35 @@
   min-width: 150px;
 }
 .student-filters select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 42px;
   background: var(--color-surface);
+}
+.student-filter-select {
+  position: relative;
+  display: block;
+}
+.student-filter-select::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 17px;
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid var(--color-text-secondary);
+  border-bottom: 1.5px solid var(--color-text-secondary);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+@media (forced-colors: active) {
+  .student-filters select {
+    appearance: auto;
+    -webkit-appearance: auto;
+  }
+  .student-filter-select::after {
+    display: none;
+  }
 }
 .student-filters > span {
   margin-left: auto;
