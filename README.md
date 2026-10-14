@@ -150,14 +150,25 @@ a separate reviewed cleanup.
 
 ## School Excel/CSV student rosters
 
-Use **Import Students** and choose your school's `.xlsx` or UTF-8 `.csv`
-roster. The importer finds the `English` and `姓名` headers even below title
-rows, ignores repeated header rows, and extracts only those two name columns.
-Both column headers must be present; values in either column may be blank.
-The first worksheet is used for Excel files. Older `.xls` and encrypted files
-must be saved as `.xlsx` or CSV UTF-8. A two-column CSV template is available.
+Use **Import Excel or CSV** to upload `.xlsx`, `.xls`, or `.csv` directly.
+Recognized name headers include `English`, `English Name`, `姓名`, `Chinese
+Name`, and `Student Name` / `Name`. Headers can follow title rows; repeated
+headers and blank-name rows are ignored. A single English or Chinese column
+is supported. Combined names are split only at clear Latin/Han script
+boundaries (including names in either order or with matching parentheses).
+Ambiguous cells remain invalid until corrected or removed in the preview.
+Unrelated columns are discarded. A two-column CSV template remains available.
 
-Enter **Subject** and **Class / Section** once for the whole roster. With
+With multiple visible worksheets, choose one before previewing or importing;
+sheets are never merged automatically. Hidden sheets are excluded. Empty or
+unrecognized worksheets show a clear error. Invalid, renamed, and unsupported
+password-protected files are rejected without echoing file contents. Limits
+are 20 worksheets, 10,000 source rows / 256 columns per sheet, and 1,000 named
+students per sheet, within a 2 MB file. CSV supports UTF-8 and UTF-16 BOM plus
+comma, semicolon, and tab delimiters.
+
+Choose or enter **Subject** and **Class / Section** once for the whole roster;
+suggestions reuse the existing roster's subjects and sections. With
 **Include Chinese names** enabled, the display name is `English 中文`; with it
 disabled, only the English name is used. A missing English name falls back to
 Chinese in either mode. Rows with both names missing are ignored. Names,
@@ -168,11 +179,14 @@ Files are parsed locally in the browser. Only extracted names are retained in
 preview state; original workbook/CSV cells exist only temporarily during
 parsing. School IDs, roster numbers, pinyin, sex, birth dates, and parent
 contact details are not retained, previewed, uploaded, logged, or exported.
-The preview shows only display name, subject, class/section, and validation
-status. Outbound import requests use an explicit field allowlist: generated
+The preview shows display name, subject, class/section, and validation status.
+Name fields are editable and rows can be removed before confirmation; these
+actions change only the local preview. Once import starts, edits, removal, and
+worksheet selection are locked to preserve safe retry payloads. Outbound import requests use an explicit field allowlist: generated
 Axiom row IDs, display names, chosen class fields, and identity confirmation.
-The original file is never uploaded. XLSX parsing is lazy-loaded using
-`read-excel-file/browser`; parser errors shown to users omit file contents.
+The original file is never uploaded. Excel parsing is lazy-loaded using
+SheetJS CE 0.20.3 from its official distribution (not the older npm-registry
+release), with legacy XLS codepage support; parser errors shown to users omit file contents.
 
 Repeated names and English/bilingual display variants trigger identity
 warnings. Leave a row skipped if it represents an existing student. Confirm
@@ -196,10 +210,11 @@ own UUIDs, display names, subjects, and sections—not school IDs, ignored
 metadata, access codes, passwords, grades, or tokens. UTF-8 BOM, CRLF, CSV
 escaping, and Excel formula-injection protection remain in place.
 
-No database migration or RLS changes are required. This update is committed
-locally without deployment. Publish the updated frontend and `axiom-api`
-function together for the school import workflow and server-side display-name
-ambiguity checks. Tests use synthetic school data and an XLSX fixture to check
+No database migration or RLS changes are required. The import API remains
+unchanged; this interface update requires only a frontend deployment. The
+previous school import update's `axiom-api` display-name checks must already
+be deployed. Teacher authorization remains the current single-teacher model;
+per-teacher ownership is still deferred, as agreed. Tests use synthetic school data and an XLSX fixture to check
 that ignored fields never reach application requests, database writes, exports,
 or logs. Live student data is not used for these checks.
 

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Student, StudentImportResult } from "../../domain/types";
-import { downloadCsv, MAX_IMPORT_ROWS, previewStudentNames, readStudentNames, studentCsv, type CsvImportRow, type StudentNames, type RosterOptions } from "../../domain/studentCsv";
+import { downloadCsv, MAX_IMPORT_ROWS, previewStudentNames, readStudentWorkbook, studentCsv, type CsvImportRow, type StudentNames, type StudentSheet, type RosterOptions } from "../../domain/studentCsv";
 import { errorMessage, studentsService } from "../../services";
 import "./StudentCsvTools.css";
 
@@ -18,6 +18,8 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
   const [panel, setPanel] = useState<"import" | "export" | null>(null);
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [names, setNames] = useState<StudentNames[]>([]);
+  const [sheets, setSheets] = useState<StudentSheet[]>([]);
+  const [sheetIndex, setSheetIndex] = useState("");
   const [options, setOptions] = useState<RosterOptions>({ subject, section, includeChinese: true });
   const [processing, setProcessing] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -38,6 +40,8 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setRows([]);
     setStarted(false);
     setNames([]);
+    setSheets([]);
+    setSheetIndex("");
   }
 
   async function readFile(file: File) {
@@ -47,10 +51,16 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setRows([]);
     setStarted(false);
     setNames([]);
+    setSheets([]);
+    setSheetIndex("");
     try {
-      const extracted = await readStudentNames(file);
-      setNames(extracted);
-      setRows(previewStudentNames(extracted, students, options));
+      const extracted = await readStudentWorkbook(file);
+      setSheets(extracted);
+      if (extracted.length === 1) {
+        setSheetIndex("0");
+        setError(extracted[0].error);
+        updateNames(extracted[0].names);
+      }
     } catch (cause) {
       setError(errorMessage(cause));
     } finally { setReading(false); }
@@ -60,6 +70,25 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setOptions(next);
     setRows(names.length ? previewStudentNames(names, students, next) : []);
   }
+
+  function updateNames(next: StudentNames[]) {
+    setNames(next);
+    setRows(next.length ? previewStudentNames(next, students, options) : []);
+  }
+
+  function selectSheet(index: string) {
+    setSheetIndex(index);
+    const sheet = sheets[Number(index)];
+    setError(index ? sheet.error : "");
+    updateNames(index ? sheet.names : []);
+  }
+
+  function editName(id: string, field: "english" | "chinese", value: string) {
+    updateNames(names.map(row => row.id === id ? { ...row, [field]: value, error: "" } : row));
+  }
+
+  const subjects = [...new Set(students.map(student => student.subject).filter((value): value is string => !!value))].sort();
+  const sections = [...new Set(students.filter(student => !options.subject.trim() || student.subject === options.subject.trim()).map(student => student.section).filter((value): value is string => !!value))].sort();
 
   async function importRows() {
     if (!eligible.length || locked) return;
@@ -124,7 +153,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
   return (
     <div className="student-csv">
       <div className="student-csv__actions">
-        <button disabled={locked} onClick={() => { setPanel("import"); setError(""); }}>Import Students</button>
+        <button disabled={locked} onClick={() => { setPanel("import"); setError(""); }}>Import Excel or CSV</button>
         <button disabled={locked} onClick={() => { setPanel("export"); setScope(subject || section ? "filtered" : "all"); setError(""); }}>Export Students</button>
       </div>
       {summary && <p className="feedback feedback--success" role="status">{summary}</p>}
@@ -146,41 +175,57 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
       )}
       {panel === "import" && (
         <section className="student-csv__panel" aria-labelledby="import-title">
-          <h2 id="import-title">Import students</h2>
-          <p>Choose your school roster with <strong>English</strong> and <strong>姓名</strong> columns. Title rows above the headers are supported. Only names are extracted locally; all other columns are discarded. Up to {MAX_IMPORT_ROWS} students and 2 MB per file. Excel uploads use the first worksheet.</p>
+          <h2 id="import-title">Import Excel or CSV</h2>
+          <p>Upload an .xlsx, .xls, or .csv roster directly. Separate <strong>English</strong> and <strong>姓名</strong> columns or a single <strong>Student Name</strong> column are supported, including headers below title rows. Only names are extracted locally; other columns are discarded. Up to {MAX_IMPORT_ROWS} students per worksheet and 2 MB per file.</p>
           <p>Choose a subject and class for the whole roster. Existing students, grades, and access codes are never overwritten. Rows with both names missing are ignored.</p>
           <fieldset className="student-csv__class-fields" disabled={locked || started}>
             <legend>Class for this roster</legend>
-            <label>Subject<input type="text" maxLength={120} placeholder="Science" value={options.subject} onChange={event => updateOptions({ ...options, subject: event.target.value })} /></label>
-            <label>Class / Section<input type="text" maxLength={120} placeholder="6C" value={options.section} onChange={event => updateOptions({ ...options, section: event.target.value })} /></label>
+            <label>Subject<input type="text" list="import-subjects" maxLength={120} placeholder="Science" value={options.subject} onChange={event => updateOptions({ ...options, subject: event.target.value })} /></label>
+            <datalist id="import-subjects">{subjects.map(value => <option key={value} value={value} />)}</datalist>
+            <label>Class / Section<input type="text" list="import-sections" maxLength={120} placeholder="6C" value={options.section} onChange={event => updateOptions({ ...options, section: event.target.value })} /></label>
+            <datalist id="import-sections">{sections.map(value => <option key={value} value={value} />)}</datalist>
             <label className="student-csv__choice"><input type="checkbox" checked={options.includeChinese} onChange={event => updateOptions({ ...options, includeChinese: event.target.checked })} />Include Chinese names</label>
           </fieldset>
           <div className="student-csv__actions">
             <button disabled={locked} onClick={() => downloadCsv("\uFEFFEnglish,姓名\r\n", "axiom-student-template.csv")}>Download CSV Template</button>
             <label className="student-csv__upload">Choose Excel or CSV file
-              <input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={locked || started} onClick={event => { event.currentTarget.value = ""; }} onChange={event => {
+              <input type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={locked || started} onClick={event => { event.currentTarget.value = ""; }} onChange={event => {
                 const file = event.target.files?.[0];
                 if (file) void readFile(file);
               }} />
             </label>
           </div>
+          {sheets.length > 1 && <label className="student-csv__worksheet">Worksheet
+            <select value={sheetIndex} disabled={locked || started} onChange={event => selectSheet(event.target.value)}>
+              <option value="">Choose a worksheet</option>
+              {sheets.map((sheet, index) => <option key={index} value={String(index)}>{sheet.label}</option>)}
+            </select>
+          </label>}
           {reading && <p role="status">Reading student names…</p>}
           {rows.length > 0 && <>
             <p>{rows.length} students found; {eligible.length} ready to import. Invalid and unresolved rows will be skipped.</p>
+            <p>Correct names or remove rows before importing. These edits affect only this preview. The preview is locked once import starts so retries cannot create extra records.</p>
             <p className="student-csv__scroll-hint">Scroll the preview sideways to review all columns.</p>
             <div className="student-csv__preview" tabIndex={0} aria-label="Student import preview">
               <table>
                 <thead><tr><th>Student display name</th><th>Subject</th><th>Class / Section</th><th>Validation status</th></tr></thead>
-                <tbody>{rows.map(row => <tr key={row.record.id}>
-                  <td>{row.record.name || "—"}</td><td>{row.record.subject || "—"}</td><td>{row.record.section || "—"}</td>
+                <tbody>{rows.map((row, index) => {
+                  const editable = names.find(name => name.id === row.record.id)!;
+                  return <tr key={row.record.id}>
+                  <td><strong>{row.record.name || "—"}</strong>
+                    <label className="student-csv__name-field">English name<input aria-label={`English name for student ${index + 1}`} value={editable.english} disabled={locked || started} onChange={event => editName(row.record.id, "english", event.target.value)} /></label>
+                    {(options.includeChinese || !editable.english) && <label className="student-csv__name-field">Chinese name<input aria-label={`Chinese name for student ${index + 1}`} value={editable.chinese} disabled={locked || started} onChange={event => editName(row.record.id, "chinese", event.target.value)} /></label>}
+                  </td><td>{row.record.subject || "—"}</td><td>{row.record.section || "—"}</td>
                   <td>{row.result ? <span className={row.result.status === "error" ? "student-csv__error" : ""}>{row.result.message}</span> : row.error ? <span className="student-csv__error">{row.error}</span> : row.warning ? <>
                     <p>{row.warning}</p>
                     <label className="student-csv__choice"><input type="checkbox" disabled={locked || started} checked={row.record.confirmDistinct} onChange={event => {
                       const confirmed = event.target.checked;
                       setRows(current => current.map(item => item.record.id === row.record.id ? { ...item, record: { ...item.record, confirmDistinct: confirmed } } : item));
                     }} />This is a different student</label>
-                  </> : row.record.studentId ? "Existing student; will be left unchanged." : "Ready"}</td>
-                </tr>)}</tbody>
+                  </> : row.record.studentId ? "Existing student; will be left unchanged." : "Ready"}
+                    <button className="student-csv__remove" aria-label={`Remove student ${index + 1} from preview`} disabled={locked || started} onClick={() => updateNames(names.filter(name => name.id !== row.record.id))}>Remove row</button>
+                  </td>
+                </tr>})}</tbody>
               </table>
             </div>
           </>}

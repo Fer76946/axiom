@@ -20,6 +20,10 @@
 .student-csv__choice input { width: 18px; height: 18px; min-height: 0; margin: 0; flex-shrink: 0; accent-color: var(--color-primary); }
 .student-csv__upload { display: grid; gap: 6px; min-width: 0; }
 .student-csv__upload input { max-width: 100%; }
+.student-csv__worksheet { display: grid; gap: 8px; margin-top: 18px; max-width: 420px; }
+.student-csv__name-field { display: grid; gap: 5px; margin-top: 10px; font-size: 0.75rem; font-weight: 500; }
+.student-csv__name-field input { min-width: 150px; min-height: 40px; padding: 8px 10px; font-size: 0.85rem; }
+.student-csv__remove { display: block; margin-top: 12px; }
 .student-csv__primary { color: #fff; background: var(--color-primary); border-color: transparent; }
 .student-csv__primary:hover:not(:disabled) { background: var(--color-primary-dark); border-color: transparent; }
 .student-csv__preview { max-height: 420px; overflow: auto; border: 1px solid var(--color-border); border-radius: var(--radius-small); margin-block: 16px; }

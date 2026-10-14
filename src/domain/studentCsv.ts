@@ -14,7 +14,7 @@ export type StudentNames = { id: string; english: string; chinese: string; error
 export type RosterOptions = { subject: string; section: string; includeChinese: boolean };
 
 // Yield one row at a time so ignored CSV columns are never retained in preview state.
-function* parseCsv(source: string): Generator<string[]> {
+function* parseCsv(source: string, delimiter = ","): Generator<string[]> {
   let fields: string[] = [];
   let field = "";
   let quoted = false;
@@ -28,7 +28,7 @@ function* parseCsv(source: string): Generator<string[]> {
         if (input[i + 1] === '"') { field += '"'; i++; }
         else { quoted = false; closed = true; }
       } else field += char;
-    } else if (char === ",") finishField();
+    } else if (char === delimiter) finishField();
     else if (char === "\n" || char === "\r") {
       if (char === "\r" && input[i + 1] === "\n") i++;
       finishField();
@@ -44,63 +44,145 @@ function* parseCsv(source: string): Generator<string[]> {
   if (field || fields.length || closed) { finishField(); yield fields; }
 }
 
+const headerKey = (cell: unknown) => typeof cell === "string"
+  ? cell.trim().replace(/^\uFEFF/, "").normalize("NFC").toLowerCase().replace(/[\s/_()（）-]+/g, "") : "";
+const englishHeaders = new Set(["english", "englishname", "英文名", "英文姓名"]);
+const chineseHeaders = new Set(["姓名", "chinese", "chinesename", "中文名", "中文姓名"]);
+const combinedHeaders = new Set(["name", "studentname", "fullname", "学生姓名", "englishchinese", "englishandchinese", "englishchinesename", "englishnamechinesename", "english中文", "英文中文姓名", "name姓名"]);
+
+// A single column is split only at clear Latin/Han script boundaries.
+export function splitStudentName(value: string): Pick<StudentNames, "english" | "chinese" | "error"> {
+  const name = value.trim().normalize("NFC");
+  if (!name) return { english: "", chinese: "", error: "" };
+  const latin = "[\\p{Script=Latin}\\p{M} .,'’\\-]+";
+  const han = "[\\p{Script=Han}·]+";
+  const pair = (first: string, second: string) => [
+    `^(${first})\\s*(${second})$`,
+    `^(${first})\\s*\\((${second})\\)$`,
+    `^(${first})\\s*（(${second})）$`,
+  ].map(pattern => new RegExp(pattern, "u").exec(name)).find(Boolean);
+  const forward = pair(latin, han);
+  const reverse = pair(han, latin);
+  if (forward) return { english: forward[1].trim(), chinese: forward[2].trim(), error: "" };
+  if (reverse) return { english: reverse[2].trim(), chinese: reverse[1].trim(), error: "" };
+  if (new RegExp(`^${han}$`, "u").test(name)) return { english: "", chinese: name, error: "" };
+  if (new RegExp(`^${latin}$`, "u").test(name) && /\p{Script=Latin}/u.test(name)) return { english: name, chinese: "", error: "" };
+  return { english: name, chinese: "", error: "Names could not be reliably separated. Correct the name fields or remove this row." };
+}
+
 export function extractStudentNames(
   rows: Iterable<readonly unknown[]>,
   makeId: () => string = () => crypto.randomUUID(),
 ): StudentNames[] {
-  let englishColumn = -1;
-  let chineseColumn = -1;
-  const names: StudentNames[] = [];
-  const headerKey = (cell: unknown) => typeof cell === "string" ? cell.trim().replace(/^\uFEFF/, "").normalize("NFC").toLowerCase() : "";
+  let columns: { english: number; chinese: number; combined: number } | undefined;
+  let paired = false;
+  let headerStrength = 0;
+  let names: StudentNames[] = [];
   for (const row of rows) {
-    if (englishColumn < 0) {
-      const headers = row.map(headerKey);
-      if (!headers.includes("english") || !headers.includes("姓名")) continue;
-      if (headers.filter(header => header === "english").length !== 1 || headers.filter(header => header === "姓名").length !== 1) {
-        throw new Error("The English and 姓名 headers must each appear once.");
+    const headers = row.map(headerKey);
+    const english = headers.flatMap((header, index) => englishHeaders.has(header) ? [index] : []);
+    const chinese = headers.flatMap((header, index) => chineseHeaders.has(header) ? [index] : []);
+    const combined = headers.flatMap((header, index) => combinedHeaders.has(header) ? [index] : []);
+    // Prefer a clear two-column header over a possible title saying "Name".
+    const strength = english.length && chinese.length ? 3 : english.length || chinese.length ? 2 : combined.length ? 1 : 0;
+    if (!columns || strength > headerStrength) {
+      if (!english.length && !chinese.length && !combined.length) continue;
+      if (english.length > 1 || chinese.length > 1 || (!english.length && !chinese.length && combined.length > 1)) {
+        throw new Error("Name columns are ambiguous. Use one English and one Chinese name column, or one Student Name column.");
       }
-      englishColumn = headers.indexOf("english");
-      chineseColumn = headers.indexOf("姓名");
+      paired = !!english.length && !!chinese.length;
+      headerStrength = strength;
+      columns = { english: english[0] ?? -1, chinese: chinese[0] ?? -1, combined: !english.length && !chinese.length ? combined[0] : -1 };
+      names = [];
       continue;
     }
-    const englishCell = row[englishColumn];
-    const chineseCell = row[chineseColumn];
-    if (headerKey(englishCell) === "english" && headerKey(chineseCell) === "姓名") continue;
+    if ((columns.english >= 0 && englishHeaders.has(headers[columns.english])) ||
+      (columns.chinese >= 0 && chineseHeaders.has(headers[columns.chinese])) ||
+      (columns.combined >= 0 && combinedHeaders.has(headers[columns.combined]))) continue;
     const name = (cell: unknown) => typeof cell === "string" ? cell.trim().normalize("NFC") : "";
-    const english = name(englishCell);
-    const chinese = name(chineseCell);
-    const invalid = [englishCell, chineseCell].some(cell => cell != null && typeof cell !== "string");
-    if (!english && !chinese && !invalid) continue;
-    names.push({ id: makeId(), english, chinese, error: invalid ? "Student names must be text." : "" });
-    if (names.length > MAX_IMPORT_ROWS) throw new Error(`Use at most ${MAX_IMPORT_ROWS} students per file.`);
+    const selected = columns.combined >= 0 ? [row[columns.combined]] : [row[columns.english], row[columns.chinese]];
+    let fields = { english: name(row[columns.english]), chinese: name(row[columns.chinese]), error: "" };
+    if (columns.combined >= 0) fields = splitStudentName(name(row[columns.combined]));
+    else if (!paired && selected.some(cell => typeof cell === "string" && /\p{Script=Han}/u.test(cell) && /\p{Script=Latin}/u.test(cell))) {
+      fields = splitStudentName(name(selected.find(cell => typeof cell === "string" && cell.trim())));
+    }
+    const invalid = selected.some(cell => cell != null && typeof cell !== "string");
+    if (!fields.english && !fields.chinese && !invalid) continue;
+    names.push({ id: makeId(), ...fields, error: invalid ? "Student names must be text. Correct the name fields or remove this row." : fields.error });
+    if (names.length > MAX_IMPORT_ROWS) throw new Error(`Use at most ${MAX_IMPORT_ROWS} students per worksheet.`);
   }
-  if (englishColumn < 0) throw new Error("Could not find English and 姓名 column headers. Title rows above the headers are allowed.");
+  if (!columns) throw new Error("No recognized student name columns found. Use English, 姓名, or Student Name headers; title rows above the headers are allowed.");
   if (!names.length) throw new Error("No student names found below the headers.");
   return names;
 }
 
 export function extractStudentNamesCsv(source: string): StudentNames[] {
   if (new TextEncoder().encode(source).length > MAX_CSV_BYTES) throw new Error("Choose a file smaller than 2 MB.");
-  return extractStudentNames(parseCsv(source));
+  let error: unknown;
+  for (const delimiter of [",", ";", "\t"]) {
+    try { return extractStudentNames(parseCsv(source, delimiter)); }
+    catch (cause) { error ??= cause; }
+  }
+  throw error;
+}
+
+export type StudentSheet = { label: string; names: StudentNames[]; error: string };
+export async function readStudentWorkbook(file: File): Promise<StudentSheet[]> {
+  if (file.size > MAX_CSV_BYTES) throw new Error("Choose a file smaller than 2 MB.");
+  const buffer = await file.arrayBuffer();
+  if (/\.csv$/i.test(file.name)) {
+    let source: string;
+    try {
+      const bytes = new Uint8Array(buffer);
+      const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? "utf-16le" : bytes[0] === 0xfe && bytes[1] === 0xff ? "utf-16be" : "utf-8";
+      source = new TextDecoder(encoding, { fatal: true }).decode(buffer);
+    } catch { throw new Error("Could not decode this CSV file. Try uploading the original Excel workbook instead."); }
+    return [{ label: "CSV", names: extractStudentNamesCsv(source), error: "" }];
+  }
+  if (!/\.(xlsx|xls)$/i.test(file.name)) throw new Error("Choose an .xlsx, .xls, or .csv file.");
+  const bytes = new Uint8Array(buffer);
+  const zip = bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 3 && bytes[3] === 4;
+  const cfb = bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
+  const biff = bytes[0] === 9 && [0, 2, 4, 8].includes(bytes[1]);
+  const prefix = new TextDecoder().decode(bytes.slice(0, 4096));
+  const xmlSpreadsheet = /<(?:\w+:)?Workbook[\s>]/.test(prefix) && prefix.includes("urn:schemas-microsoft-com:office:spreadsheet");
+  if (/\.xlsx$/i.test(file.name) ? !zip : !(cfb || biff || xmlSpreadsheet)) throw new Error("This file is not a valid Excel workbook.");
+  // Use the official current SheetJS package; only extracted names leave parser memory.
+  const { read, utils, set_cptable } = await import("xlsx");
+  if (/\.xls$/i.test(file.name)) set_cptable(await import("xlsx/dist/cpexcel.full.mjs"));
+  let workbook;
+  // Read actual ranges before applying limits; a parser row cutoff can hide later students.
+  try { workbook = read(buffer, { type: "array", cellHTML: false, cellFormula: false, cellText: false, bookVBA: false, nodim: true }); }
+  catch { throw new Error("Could not read this Excel workbook. Check that it is valid and not password-protected."); }
+  if (!workbook.SheetNames.length || workbook.SheetNames.length > 20) throw new Error("Choose a workbook containing 1 to 20 worksheets.");
+  const visible = workbook.SheetNames.filter((_label, index) => !workbook.Workbook?.Sheets?.[index]?.Hidden);
+  if (!visible.length) throw new Error("This workbook has no visible worksheets.");
+  return visible.map(label => {
+    let cells: unknown[][];
+    try {
+      const sheet = workbook.Sheets[label];
+      const range = sheet?.['!ref'] ? utils.decode_range(sheet['!ref']) : undefined;
+      const fullRange = sheet?.['!fullref'] ? utils.decode_range(sheet['!fullref']) : range;
+      if (!range) return { label, names: [], error: "This worksheet is empty." };
+      if (fullRange && (fullRange.e.r >= 10000 || fullRange.e.c >= 256)) return { label, names: [], error: "This worksheet is too large to preview safely (maximum 10,000 rows and 256 columns)." };
+      cells = utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: null, blankrows: false });
+    } catch {
+      // Third-party exceptions may contain cell contents; never display those messages.
+      return { label, names: [], error: "Could not read this worksheet safely." };
+    }
+    try {
+      return { label, names: extractStudentNames(cells), error: "" };
+    } catch (cause) {
+      return { label, names: [], error: cause instanceof Error ? cause.message : "Could not extract names from this worksheet." };
+    }
+  });
 }
 
 export async function readStudentNames(file: File): Promise<StudentNames[]> {
-  if (file.size > MAX_CSV_BYTES) throw new Error("Choose a file smaller than 2 MB.");
-  if (/\.csv$/i.test(file.name)) {
-    let source: string;
-    try { source = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer()); }
-    catch { throw new Error("Save the file as CSV UTF-8 in Excel, then try again."); }
-    return extractStudentNamesCsv(source);
-  }
-  if (/\.xlsx$/i.test(file.name)) {
-    const { readSheet } = await import("read-excel-file/browser");
-    let cells: unknown[][];
-    try { cells = await readSheet(file, 1); }
-    catch { throw new Error("Could not read this Excel file. Use an unencrypted .xlsx file or save as CSV UTF-8."); }
-    // Workbook cells are temporary parser memory; only the two name fields leave this function.
-    return extractStudentNames(cells);
-  }
-  throw new Error("Choose a .csv or .xlsx file. Older .xls files must be saved as .xlsx or CSV UTF-8.");
+  const sheets = await readStudentWorkbook(file);
+  if (sheets.length !== 1) throw new Error("Choose a worksheet before importing students.");
+  if (sheets[0].error) throw new Error(sheets[0].error);
+  return sheets[0].names;
 }
 
 export function previewStudentNames(names: StudentNames[], existing: StudentIdentity[], options: RosterOptions): CsvImportRow[] {
