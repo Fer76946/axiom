@@ -11,7 +11,10 @@ type NavbarProps = {
 };
 
 function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
-  const { user, profile, studentSession, logout, error: authError } = useAuth();
+  const {
+    user, profile, studentSession, loading, logout, error: authError,
+  } = useAuth();
+  const hasSession = !!studentSession || (!!user && profile?.role === "teacher");
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,10 +23,10 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
     setError("");
     try {
       await logout();
-      navigate("/login", { replace: true });
+      navigate("/", { replace: true });
     } catch (cause) {
       setError(errorMessage(cause));
-      if (studentSession) navigate("/login", { replace: true });
+      if (studentSession) navigate("/", { replace: true });
     } finally {
       setBusy(false);
     }
@@ -40,27 +43,11 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
           <NavLink
             className={({ isActive }) =>
               `navbar__link ${isActive ? "navbar__link--active" : ""}`}
-            to="/"
-            end
-          >
-            Home
-          </NavLink>
-
-          <NavLink
-            className={({ isActive }) =>
-              `navbar__link ${isActive ? "navbar__link--active" : ""}`}
             to="/grades"
           >
             Grades
           </NavLink>
 
-          <NavLink
-            className={({ isActive }) =>
-              `navbar__link ${isActive ? "navbar__link--active" : ""}`}
-            to="/axiom"
-          >
-            Axiom
-          </NavLink>
           {profile?.role === "teacher" && (
             <NavLink
               className={({ isActive }) =>
@@ -78,15 +65,13 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
             onToggle={onThemeToggle}
           />
 
-          {user || studentSession
+          {!loading && hasSession
             ? (
               <>
                 <span className="navbar__status">
                   {studentSession
                     ? `Student - ${studentSession.student.name}`
-                    : profile?.role === "teacher"
-                    ? "Teacher"
-                    : "Account"}
+                    : "Teacher"}
                 </span>
 
                 <button
@@ -101,7 +86,7 @@ function Navbar({ isDarkMode, onThemeToggle }: NavbarProps) {
             )
             : (
               <NavLink
-                to="/login"
+                to="/"
                 className="login-button"
               >
                 Log In

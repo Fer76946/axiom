@@ -18,11 +18,11 @@ function ProtectedRoute({
   }
 
   if (requiredRole === "student") {
-    return studentSession ? children : <Navigate to="/login" replace />;
+    return studentSession ? children : <Navigate to="/" replace />;
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (requiredRole && profile?.role !== requiredRole) {

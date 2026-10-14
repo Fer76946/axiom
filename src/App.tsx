@@ -1,8 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout/MainLayout";
-import Axiom from "./pages/Axiom/Axiom";
 import Grades from "./pages/Grades/Grades";
-import Home from "./pages/Home/Home";
 import Login from "./pages/Login/Login";
 import Teacher from "./pages/Teacher/Teacher";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -12,8 +10,8 @@ function App() {
     <BrowserRouter>
       <MainLayout>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Login />} />
+          <Route path="/login" element={<Navigate to="/" replace />} />
           <Route
             path="/grades"
             element={
@@ -22,7 +20,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="/axiom" element={<Axiom />} />
           <Route path="*" element={<Navigate to="/" replace />} />
           <Route
             path="/teacher"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../../contexts/useAuth";
 import { errorMessage } from "../../services";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import "./Login.css";
 
 function Login() {
@@ -14,7 +14,9 @@ function Login() {
   const [studentMessage, setStudentMessage] = useState("");
 
   const navigate = useNavigate();
-  const { teacherLogin, studentLogin } = useAuth();
+  const {
+    teacherLogin, studentLogin, user, profile, studentSession, loading,
+  } = useAuth();
   const [busy, setBusy] = useState(false);
   const [signingInAs, setSigningInAs] = useState<"teacher" | "student" | null>(
     null,
@@ -58,6 +60,13 @@ function Login() {
       setBusy(false);
     }
   }
+
+  // Wait for Supabase restoration before deciding which dashboard to show.
+  if (loading) return <p>Loading...</p>;
+  if (user && profile?.role === "teacher") {
+    return <Navigate to="/teacher" replace />;
+  }
+  if (studentSession) return <Navigate to="/grades" replace />;
 
   return (
     <section className="login-page">

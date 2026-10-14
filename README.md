@@ -148,6 +148,21 @@ cannot be assigned through browser writes. New students only create `students`
 rows. Legacy student Auth accounts, if present remotely, are left intact pending
 a separate reviewed cleanup.
 
+## MVP navigation
+
+The homepage (`/`) uses the existing student access-code and teacher
+email/password login forms. After session restoration, signed-in students go
+to `/grades` and teachers with a teacher profile go to `/teacher`. The old
+`/login` URL redirects to `/` for compatibility. Protected routes send visitors
+back to `/` and keep the existing role checks.
+
+The header retains Grades, the teacher-only Teacher link, branding, and the
+persisted theme toggle. Logout appears for a restored teacher or student
+session and returns to `/`. Home and the Axiom arcade are outside the active
+route tree; their source components remain available for future development,
+including the coming-soon page. `/axiom` currently follows the fallback to `/`,
+so its Learn More button is outside the MVP experience.
+
 ## Verification status and live checklist
 
 Automated checks cover session persistence/logout, rejection of
