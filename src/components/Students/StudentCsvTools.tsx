@@ -30,6 +30,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
   const [mapping, setMapping] = useState<NameMapping>({ englishColumn: null, chineseColumn: null, startRow: 1 });
   const [mappingDirty, setMappingDirty] = useState(false);
   const sourceFile = useRef<File | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
   const [options, setOptions] = useState<RosterOptions>({ subject, section, includeChinese: true });
   const [processing, setProcessing] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -46,8 +47,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
   const eligible = rows.filter(ready);
   const selectedSheet = sheetIndex !== "" ? sheets[Number(sheetIndex)] : undefined;
 
-  function close() {
-    setPanel(null);
+  function resetImport() {
     setRows([]);
     setStarted(false);
     setNames([]);
@@ -55,6 +55,18 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setSheetIndex("");
     sourceFile.current = null;
     setMappingDirty(false);
+    setMapping({ englishColumn: null, chineseColumn: null, startRow: 1 });
+    setError("");
+    setSummary("");
+    setProgress({ done: 0, total: 0 });
+    setStopping(false);
+    stop.current = false;
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
+  function close() {
+    resetImport();
+    setPanel(null);
   }
 
   async function readFile(file: File) {
@@ -229,7 +241,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
           <div className="student-csv__actions">
             <button disabled={locked} onClick={() => downloadCsv("\uFEFFEnglish,姓名\r\n", "axiom-student-template.csv")}>Download CSV Template</button>
             <label className="student-csv__upload">Choose Excel or CSV file
-              <input type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={locked || started} onClick={event => { event.currentTarget.value = ""; }} onChange={event => {
+              <input ref={fileInput} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={locked || started} onClick={event => { event.currentTarget.value = ""; }} onChange={event => {
                 const file = event.target.files?.[0];
                 if (file) void readFile(file);
               }} />
@@ -286,8 +298,13 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
           </>}
           {processing && <div role="status"><p>Processed {progress.done} of {progress.total} rows. {stopping ? "Stopping after the current batch…" : ""}</p><progress value={progress.done} max={progress.total || 1} /></div>}
           <div className="student-csv__actions">
-            <button className="student-csv__primary" disabled={locked || mappingDirty || !eligible.length} onClick={() => void importRows()}>{started ? `Retry ${eligible.length} remaining rows` : `Import ${eligible.length} ready rows`}</button>
-            {processing ? <button disabled={stopping} onClick={() => { stop.current = true; setStopping(true); }}>Stop after current batch</button> : <button disabled={reading} onClick={close}>{started ? "Close preview" : "Cancel"}</button>}
+            {started && !eligible.length && !processing ? (
+              <button className="student-csv__primary" disabled={locked} onClick={() => {
+                resetImport();
+                requestAnimationFrame(() => fileInput.current?.focus());
+              }}>Import another file</button>
+            ) : <button className="student-csv__primary" disabled={locked || mappingDirty || !eligible.length} onClick={() => void importRows()}>{started ? `Retry ${eligible.length} remaining rows` : `Import ${eligible.length} ready rows`}</button>}
+            {processing ? <button disabled={stopping} onClick={() => { stop.current = true; setStopping(true); }}>Stop after current batch</button> : <button disabled={locked} onClick={close}>Close import</button>}
           </div>
         </section>
       )}
