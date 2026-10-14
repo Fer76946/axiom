@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { Student, StudentImportResult } from "../../domain/types";
 import { downloadCsv, MAX_IMPORT_ROWS, previewStudentNames, readStudentWorkbook, studentCsv, type CsvImportRow, type StudentNames, type StudentSheet, type RosterOptions } from "../../domain/studentCsv";
 import { errorMessage, studentsService } from "../../services";
+import type { NameMapping } from "../../domain/studentNameDetection";
 import "./StudentCsvTools.css";
 
 type PreviewRow = CsvImportRow & { result?: StudentImportResult };
@@ -14,12 +15,21 @@ type Props = {
   onChanged: () => Promise<void>;
 };
 
+function columnLetter(index: number) {
+  let label = "";
+  for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) label = String.fromCharCode(65 + (value - 1) % 26) + label;
+  return label;
+}
+
 function StudentCsvTools({ students, disabled, subject, section, onBusyChange, onChanged }: Props) {
   const [panel, setPanel] = useState<"import" | "export" | null>(null);
   const [rows, setRows] = useState<PreviewRow[]>([]);
   const [names, setNames] = useState<StudentNames[]>([]);
   const [sheets, setSheets] = useState<StudentSheet[]>([]);
   const [sheetIndex, setSheetIndex] = useState("");
+  const [mapping, setMapping] = useState<NameMapping>({ englishColumn: null, chineseColumn: null, startRow: 1 });
+  const [mappingDirty, setMappingDirty] = useState(false);
+  const sourceFile = useRef<File | null>(null);
   const [options, setOptions] = useState<RosterOptions>({ subject, section, includeChinese: true });
   const [processing, setProcessing] = useState(false);
   const [stopping, setStopping] = useState(false);
@@ -34,6 +44,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
   const ready = (row: PreviewRow) => !row.error && (!row.warning || row.record.confirmDistinct) &&
     row.result?.status !== "created" && row.result?.status !== "existing";
   const eligible = rows.filter(ready);
+  const selectedSheet = sheetIndex !== "" ? sheets[Number(sheetIndex)] : undefined;
 
   function close() {
     setPanel(null);
@@ -42,6 +53,8 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setNames([]);
     setSheets([]);
     setSheetIndex("");
+    sourceFile.current = null;
+    setMappingDirty(false);
   }
 
   async function readFile(file: File) {
@@ -53,12 +66,15 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setNames([]);
     setSheets([]);
     setSheetIndex("");
+    sourceFile.current = file;
+    setMappingDirty(false);
     try {
       const extracted = await readStudentWorkbook(file);
       setSheets(extracted);
       if (extracted.length === 1) {
         setSheetIndex("0");
         setError(extracted[0].error);
+        if (extracted[0].analysis) setMapping(extracted[0].analysis.mapping);
         updateNames(extracted[0].names);
       }
     } catch (cause) {
@@ -81,6 +97,30 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     const sheet = sheets[Number(index)];
     setError(index ? sheet.error : "");
     updateNames(index ? sheet.names : []);
+    setMappingDirty(false);
+    if (index && sheet.analysis) setMapping(sheet.analysis.mapping);
+  }
+
+  function changeMapping(next: NameMapping) {
+    setMapping(next);
+    setMappingDirty(true);
+    // Never import a stale preview after changing the selected source fields.
+    updateNames([]);
+  }
+
+  async function applyMapping() {
+    if (!sourceFile.current || !selectedSheet || locked || started) return;
+    setReading(true);
+    setError("");
+    try {
+      const extracted = await readStudentWorkbook(sourceFile.current, { [selectedSheet.label]: mapping });
+      const next = extracted[Number(sheetIndex)];
+      setSheets(extracted);
+      setError(next.error);
+      updateNames(next.names);
+      setMappingDirty(false);
+    } catch (cause) { setError(errorMessage(cause)); }
+    finally { setReading(false); }
   }
 
   function editName(id: string, field: "english" | "chinese", value: string) {
@@ -91,7 +131,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
   const sections = [...new Set(students.filter(student => !options.subject.trim() || student.subject === options.subject.trim()).map(student => student.section).filter((value): value is string => !!value))].sort();
 
   async function importRows() {
-    if (!eligible.length || locked) return;
+    if (!eligible.length || locked || mappingDirty) return;
     stop.current = false;
     setStopping(false);
     setStarted(true);
@@ -176,7 +216,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
       {panel === "import" && (
         <section className="student-csv__panel" aria-labelledby="import-title">
           <h2 id="import-title">Import Excel or CSV</h2>
-          <p>Upload an .xlsx, .xls, or .csv roster directly. Separate <strong>English</strong> and <strong>姓名</strong> columns or a single <strong>Student Name</strong> column are supported, including headers below title rows. Only names are extracted locally; other columns are discarded. Up to {MAX_IMPORT_ROWS} students per worksheet and 2 MB per file.</p>
+          <p>Upload an .xlsx, .xls, or .csv roster directly. Name columns are detected from headers and contents, including rosters without headers. Only names are extracted locally; other columns are discarded. Up to {MAX_IMPORT_ROWS} students per worksheet and 2 MB per file.</p>
           <p>Choose a subject and class for the whole roster. Existing students, grades, and access codes are never overwritten. Rows with both names missing are ignored.</p>
           <fieldset className="student-csv__class-fields" disabled={locked || started}>
             <legend>Class for this roster</legend>
@@ -202,6 +242,21 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
             </select>
           </label>}
           {reading && <p role="status">Reading student names…</p>}
+          {selectedSheet?.analysis && <details className="student-csv__mapping" key={`${sheetIndex}-${selectedSheet.analysis.confident}`} open={!selectedSheet.analysis.confident || undefined}>
+            <summary>Check or change name columns and starting row</summary>
+            <p>{selectedSheet.analysis.notice} Use the column letters in your spreadsheet; unrelated cell contents are never displayed.</p>
+            <fieldset className="student-csv__class-fields" disabled={locked || started}>
+              <legend>Name selection</legend>
+              {(["englishColumn", "chineseColumn"] as const).map(field => <label key={field}>{field === "englishColumn" ? "English / combined name column" : "Chinese name column"}
+                <select value={mapping[field] ?? ""} onChange={event => changeMapping({ ...mapping, [field]: event.target.value === "" ? null : Number(event.target.value) })}>
+                  <option value="">None</option>
+                  {selectedSheet.analysis!.columns.map(column => <option key={column.index} value={column.index} disabled={column.blocked}>Column {columnLetter(column.index)}{column.blocked ? " (not a name column)" : ""}</option>)}
+                </select>
+              </label>)}
+              <label>Starting row<input type="number" min={1} max={selectedSheet.analysis.rowCount} value={mapping.startRow} onChange={event => changeMapping({ ...mapping, startRow: Number(event.target.value) })} /></label>
+            </fieldset>
+            <button disabled={locked || started} onClick={() => void applyMapping()}>Update preview</button>
+          </details>}
           {rows.length > 0 && <>
             <p>{rows.length} students found; {eligible.length} ready to import. Invalid and unresolved rows will be skipped.</p>
             <p>Correct names or remove rows before importing. These edits affect only this preview. The preview is locked once import starts so retries cannot create extra records.</p>
@@ -231,7 +286,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
           </>}
           {processing && <div role="status"><p>Processed {progress.done} of {progress.total} rows. {stopping ? "Stopping after the current batch…" : ""}</p><progress value={progress.done} max={progress.total || 1} /></div>}
           <div className="student-csv__actions">
-            <button className="student-csv__primary" disabled={locked || !eligible.length} onClick={() => void importRows()}>{started ? `Retry ${eligible.length} remaining rows` : `Import ${eligible.length} ready rows`}</button>
+            <button className="student-csv__primary" disabled={locked || mappingDirty || !eligible.length} onClick={() => void importRows()}>{started ? `Retry ${eligible.length} remaining rows` : `Import ${eligible.length} ready rows`}</button>
             {processing ? <button disabled={stopping} onClick={() => { stop.current = true; setStopping(true); }}>Stop after current batch</button> : <button disabled={reading} onClick={close}>{started ? "Close preview" : "Cancel"}</button>}
           </div>
         </section>

@@ -159,6 +159,23 @@ boundaries (including names in either order or with matching parentheses).
 Ambiguous cells remain invalid until corrected or removed in the preview.
 Unrelated columns are discarded. A two-column CSV template remains available.
 
+When headers are missing or incomplete, deterministic local analysis scores
+columns using Latin/Han name patterns, distinct values, and the proportion of
+name-like cells. Numeric IDs, dates, gender, contacts, and labeled parent/pinyin
+columns are excluded. Common pinyin surname spellings are compared with Chinese
+names to avoid treating pinyin as English names. Title, blank, repeated-header,
+and recognizable summary rows are skipped. No AI API or external analysis is used.
+
+Competing name-like columns or insufficient evidence require confirmation;
+no students are previewed or imported automatically in that case. Expand
+**Check or change name columns and starting row**, select Excel column letters
+and the first student row, then choose **Update preview**. These controls also
+correct an automatic selection. Known non-name columns are disabled, and only
+generic column letters are shown—not unrelated headers or cell contents.
+Headerless student and parent names can have identical patterns; deterministic
+analysis cannot guarantee their identity. Review the selected names before
+importing. Single-row headerless files require manual selection.
+
 With multiple visible worksheets, choose one before previewing or importing;
 sheets are never merged automatically. Hidden sheets are excluded. Empty or
 unrecognized worksheets show a clear error. Invalid, renamed, and unsupported
@@ -177,12 +194,16 @@ contain up to 1,000 named students and be at most 2 MB.
 
 Files are parsed locally in the browser. Only extracted names are retained in
 preview state; original workbook/CSV cells exist only temporarily during
-parsing. School IDs, roster numbers, pinyin, sex, birth dates, and parent
+parsing. A local File reference is kept while the preview is open so changing
+column selections can re-read the file; closing the preview releases it.
+School IDs, roster numbers, pinyin, sex, birth dates, and parent
 contact details are not retained, previewed, uploaded, logged, or exported.
 The preview shows display name, subject, class/section, and validation status.
 Name fields are editable and rows can be removed before confirmation; these
 actions change only the local preview. Once import starts, edits, removal, and
-worksheet selection are locked to preserve safe retry payloads. Outbound import requests use an explicit field allowlist: generated
+worksheet/column selection are locked to preserve safe retry payloads. Changing
+columns clears the old preview until it is re-read, preventing stale imports.
+Outbound import requests use an explicit field allowlist: generated
 Axiom row IDs, display names, chosen class fields, and identity confirmation.
 The original file is never uploaded. Excel parsing is lazy-loaded using
 SheetJS CE 0.20.3 from its official distribution (not the older npm-registry

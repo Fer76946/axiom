@@ -1,4 +1,6 @@
 import type { StudentIdentity, StudentImportRecord } from "./types.ts";
+import { analyzeNameColumns, extractMappedNames, type NameMapping, type NameAnalysis, type StudentNames } from "./studentNameDetection.ts";
+export { splitStudentName, type StudentNames } from "./studentNameDetection.ts";
 import { studentInput, studentNamesMayMatch } from "../../supabase/functions/_shared/validation.ts";
 
 export const MAX_IMPORT_ROWS = 1000;
@@ -10,10 +12,9 @@ export type CsvImportRow = {
   warning: string;
 };
 
-export type StudentNames = { id: string; english: string; chinese: string; error: string };
 export type RosterOptions = { subject: string; section: string; includeChinese: boolean };
 
-// Yield one row at a time so ignored CSV columns are never retained in preview state.
+// Raw cells are temporary local parser data, never retained in preview state.
 function* parseCsv(source: string, delimiter = ","): Generator<string[]> {
   let fields: string[] = [];
   let field = "";
@@ -44,90 +45,57 @@ function* parseCsv(source: string, delimiter = ","): Generator<string[]> {
   if (field || fields.length || closed) { finishField(); yield fields; }
 }
 
-const headerKey = (cell: unknown) => typeof cell === "string"
-  ? cell.trim().replace(/^\uFEFF/, "").normalize("NFC").toLowerCase().replace(/[\s/_()（）-]+/g, "") : "";
-const englishHeaders = new Set(["english", "englishname", "英文名", "英文姓名"]);
-const chineseHeaders = new Set(["姓名", "chinese", "chinesename", "中文名", "中文姓名"]);
-const combinedHeaders = new Set(["name", "studentname", "fullname", "学生姓名", "englishchinese", "englishandchinese", "englishchinesename", "englishnamechinesename", "english中文", "英文中文姓名", "name姓名"]);
-
-// A single column is split only at clear Latin/Han script boundaries.
-export function splitStudentName(value: string): Pick<StudentNames, "english" | "chinese" | "error"> {
-  const name = value.trim().normalize("NFC");
-  if (!name) return { english: "", chinese: "", error: "" };
-  const latin = "[\\p{Script=Latin}\\p{M} .,'’\\-]+";
-  const han = "[\\p{Script=Han}·]+";
-  const pair = (first: string, second: string) => [
-    `^(${first})\\s*(${second})$`,
-    `^(${first})\\s*\\((${second})\\)$`,
-    `^(${first})\\s*（(${second})）$`,
-  ].map(pattern => new RegExp(pattern, "u").exec(name)).find(Boolean);
-  const forward = pair(latin, han);
-  const reverse = pair(han, latin);
-  if (forward) return { english: forward[1].trim(), chinese: forward[2].trim(), error: "" };
-  if (reverse) return { english: reverse[2].trim(), chinese: reverse[1].trim(), error: "" };
-  if (new RegExp(`^${han}$`, "u").test(name)) return { english: "", chinese: name, error: "" };
-  if (new RegExp(`^${latin}$`, "u").test(name) && /\p{Script=Latin}/u.test(name)) return { english: name, chinese: "", error: "" };
-  return { english: name, chinese: "", error: "Names could not be reliably separated. Correct the name fields or remove this row." };
+export function extractStudentNames(rows: Iterable<readonly unknown[]>, makeId: () => string = () => crypto.randomUUID()): StudentNames[] {
+  const source = collectCells(rows);
+  const analysis = analyzeNameColumns(source);
+  if (!analysis.confident) throw new Error(analysis.notice);
+  return extractMappedNames(source, analysis.mapping, analysis, makeId);
 }
 
-export function extractStudentNames(
-  rows: Iterable<readonly unknown[]>,
-  makeId: () => string = () => crypto.randomUUID(),
-): StudentNames[] {
-  let columns: { english: number; chinese: number; combined: number } | undefined;
-  let paired = false;
-  let headerStrength = 0;
-  let names: StudentNames[] = [];
+function collectCells<T extends readonly unknown[]>(rows: Iterable<T>): T[] {
+  const cells: T[] = [];
   for (const row of rows) {
-    const headers = row.map(headerKey);
-    const english = headers.flatMap((header, index) => englishHeaders.has(header) ? [index] : []);
-    const chinese = headers.flatMap((header, index) => chineseHeaders.has(header) ? [index] : []);
-    const combined = headers.flatMap((header, index) => combinedHeaders.has(header) ? [index] : []);
-    // Prefer a clear two-column header over a possible title saying "Name".
-    const strength = english.length && chinese.length ? 3 : english.length || chinese.length ? 2 : combined.length ? 1 : 0;
-    if (!columns || strength > headerStrength) {
-      if (!english.length && !chinese.length && !combined.length) continue;
-      if (english.length > 1 || chinese.length > 1 || (!english.length && !chinese.length && combined.length > 1)) {
-        throw new Error("Name columns are ambiguous. Use one English and one Chinese name column, or one Student Name column.");
-      }
-      paired = !!english.length && !!chinese.length;
-      headerStrength = strength;
-      columns = { english: english[0] ?? -1, chinese: chinese[0] ?? -1, combined: !english.length && !chinese.length ? combined[0] : -1 };
-      names = [];
-      continue;
-    }
-    if ((columns.english >= 0 && englishHeaders.has(headers[columns.english])) ||
-      (columns.chinese >= 0 && chineseHeaders.has(headers[columns.chinese])) ||
-      (columns.combined >= 0 && combinedHeaders.has(headers[columns.combined]))) continue;
-    const name = (cell: unknown) => typeof cell === "string" ? cell.trim().normalize("NFC") : "";
-    const selected = columns.combined >= 0 ? [row[columns.combined]] : [row[columns.english], row[columns.chinese]];
-    let fields = { english: name(row[columns.english]), chinese: name(row[columns.chinese]), error: "" };
-    if (columns.combined >= 0) fields = splitStudentName(name(row[columns.combined]));
-    else if (!paired && selected.some(cell => typeof cell === "string" && /\p{Script=Han}/u.test(cell) && /\p{Script=Latin}/u.test(cell))) {
-      fields = splitStudentName(name(selected.find(cell => typeof cell === "string" && cell.trim())));
-    }
-    const invalid = selected.some(cell => cell != null && typeof cell !== "string");
-    if (!fields.english && !fields.chinese && !invalid) continue;
-    names.push({ id: makeId(), ...fields, error: invalid ? "Student names must be text. Correct the name fields or remove this row." : fields.error });
-    if (names.length > MAX_IMPORT_ROWS) throw new Error(`Use at most ${MAX_IMPORT_ROWS} students per worksheet.`);
+    if (cells.length >= 10000 || row.length > 256) throw new Error("This worksheet is too large to analyze safely (maximum 10,000 rows and 256 columns).");
+    cells.push(row);
   }
-  if (!columns) throw new Error("No recognized student name columns found. Use English, 姓名, or Student Name headers; title rows above the headers are allowed.");
-  if (!names.length) throw new Error("No student names found below the headers.");
-  return names;
+  return cells;
 }
 
 export function extractStudentNamesCsv(source: string): StudentNames[] {
   if (new TextEncoder().encode(source).length > MAX_CSV_BYTES) throw new Error("Choose a file smaller than 2 MB.");
-  let error: unknown;
-  for (const delimiter of [",", ";", "\t"]) {
-    try { return extractStudentNames(parseCsv(source, delimiter)); }
-    catch (cause) { error ??= cause; }
-  }
-  throw error;
+  return extractStudentNames(parseCsv(source, csvDelimiter(source)));
 }
 
-export type StudentSheet = { label: string; names: StudentNames[]; error: string };
-export async function readStudentWorkbook(file: File): Promise<StudentSheet[]> {
+function csvDelimiter(source: string) {
+  const counts = new Map([[",", 0], [";", 0], ["\t", 0]]);
+  let quoted = false;
+  let lines = 0;
+  for (let index = 0; index < source.length && lines < 50; index++) {
+    const char = source[index];
+    if (char === '"') {
+      if (quoted && source[index + 1] === '"') index++;
+      else quoted = !quoted;
+    } else if (!quoted) {
+      if (char === "\n") lines++;
+      if (counts.has(char)) counts.set(char, counts.get(char)! + 1);
+    }
+  }
+  return [...counts].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+export type StudentSheet = { label: string; names: StudentNames[]; error: string; analysis?: NameAnalysis };
+function prepareSheet(label: string, cells: unknown[][], mapping?: NameMapping): StudentSheet {
+  const analysis = analyzeNameColumns(cells);
+  if (mapping) analysis.mapping = mapping;
+  if (!mapping && !analysis.confident) return { label, names: [], error: analysis.notice, analysis };
+  try {
+    const names = extractMappedNames(cells, analysis.mapping, analysis);
+    if (mapping) analysis.notice = "Selected name columns applied locally. Review the preview before importing.";
+    return { label, names, error: "", analysis };
+  }
+  catch (cause) { return { label, names: [], error: cause instanceof Error ? cause.message : "Could not extract student names.", analysis }; }
+}
+export async function readStudentWorkbook(file: File, mappings: Record<string, NameMapping> = {}): Promise<StudentSheet[]> {
   if (file.size > MAX_CSV_BYTES) throw new Error("Choose a file smaller than 2 MB.");
   const buffer = await file.arrayBuffer();
   if (/\.csv$/i.test(file.name)) {
@@ -137,7 +105,8 @@ export async function readStudentWorkbook(file: File): Promise<StudentSheet[]> {
       const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? "utf-16le" : bytes[0] === 0xfe && bytes[1] === 0xff ? "utf-16be" : "utf-8";
       source = new TextDecoder(encoding, { fatal: true }).decode(buffer);
     } catch { throw new Error("Could not decode this CSV file. Try uploading the original Excel workbook instead."); }
-    return [{ label: "CSV", names: extractStudentNamesCsv(source), error: "" }];
+    const cells = collectCells(parseCsv(source, csvDelimiter(source)));
+    return [prepareSheet("CSV", cells, mappings.CSV)];
   }
   if (!/\.(xlsx|xls)$/i.test(file.name)) throw new Error("Choose an .xlsx, .xls, or .csv file.");
   const bytes = new Uint8Array(buffer);
@@ -165,13 +134,13 @@ export async function readStudentWorkbook(file: File): Promise<StudentSheet[]> {
       const fullRange = sheet?.['!fullref'] ? utils.decode_range(sheet['!fullref']) : range;
       if (!range) return { label, names: [], error: "This worksheet is empty." };
       if (fullRange && (fullRange.e.r >= 10000 || fullRange.e.c >= 256)) return { label, names: [], error: "This worksheet is too large to preview safely (maximum 10,000 rows and 256 columns)." };
-      cells = utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: null, blankrows: false });
+      cells = utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: null, blankrows: true, range: { s: { r: 0, c: 0 }, e: range.e } });
     } catch {
       // Third-party exceptions may contain cell contents; never display those messages.
       return { label, names: [], error: "Could not read this worksheet safely." };
     }
     try {
-      return { label, names: extractStudentNames(cells), error: "" };
+      return prepareSheet(label, cells, Object.hasOwn(mappings, label) ? mappings[label] : undefined);
     } catch (cause) {
       return { label, names: [], error: cause instanceof Error ? cause.message : "Could not extract names from this worksheet." };
     }

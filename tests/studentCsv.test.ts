@@ -57,7 +57,7 @@ test("required shared class and name limits are validated without echoing cell c
   assert.match(previewStudentNames(names, [], { ...options, subject: "" })[0].error, /Subject is required/);
   assert.match(previewStudentNames(names, [], { ...options, section: "" })[0].error, /Class is required/);
   assert.match(previewStudentNames(names, [], options)[1].error, /maximum 120/);
-  assert.match(previewStudentNames(names, [], options)[2].error, /Student names must be text/);
+  assert.equal(names.length, 2, "numeric identifiers are skipped rather than exposed as names");
 });
 test("repeated and English/bilingual name variants are flagged, not assumed to be unique identities", () => {
   const names = extractStudentNamesCsv("English,姓名\nYoyo,张三\nSam,李四\nSam,王五");
