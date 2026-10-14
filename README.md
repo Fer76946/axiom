@@ -192,6 +192,13 @@ Chinese in either mode. Rows with both names missing are ignored. Names,
 subjects, and sections use the existing 120-character validation. Files can
 contain up to 1,000 named students and be at most 2 MB.
 
+The roster's **Show Chinese names** checkbox defaults on and remembers the
+teacher's browser preference. It changes only display of bilingual names in
+the existing Student column/mobile card heading; no separate name field is
+added. Chinese-only names remain visible. Import's **Include Chinese names**
+option still controls which name text is stored; a name omitted during import
+cannot be recovered by the roster toggle. Stored names and exports are unchanged.
+
 Files are parsed locally in the browser. Only extracted names are retained in
 preview state; original workbook/CSV cells exist only temporarily during
 parsing. A local File reference is kept while the preview is open so changing

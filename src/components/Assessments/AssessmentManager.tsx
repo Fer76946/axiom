@@ -10,7 +10,7 @@ const emptyForm = (): AssessmentInput => {
   return { title: "", score: 0, maxScore: 100, date };
 };
 export default function AssessmentManager(
-  { student, onClose }: { student: Student; onClose: () => void },
+  { student, displayName = student.name, onClose }: { student: Student; displayName?: string; onClose: () => void },
 ) {
   const panel = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -80,7 +80,7 @@ export default function AssessmentManager(
       className="students-card assessment-manager"
       ref={panel}
       tabIndex={-1}
-      aria-label={`Assessments for ${student.name}`}
+      aria-label={`Assessments for ${displayName}`}
       onKeyDown={event => {
         if (event.key === "Escape" && !event.nativeEvent.isComposing && editing && !busy) {
           event.preventDefault();
@@ -91,7 +91,7 @@ export default function AssessmentManager(
       }}
     >
       <div className="teacher-header">
-        <h2>Assessments — {student.name}</h2>
+        <h2>Assessments — {displayName}</h2>
         <button disabled={busy} onClick={onClose}>Close</button>
       </div>
       {error && (

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Student, StudentInput } from "../../domain/types";
+import { readChineseNamesPreference, rosterStudentName, saveChineseNamesPreference } from "../../domain/rosterNames";
 import GradeDisplay from "../../components/GradeDisplay/GradeDisplay";
 import EmptyState from "../../components/EmptyState/EmptyState";
 import { errorMessage, gradesService, studentsService } from "../../services";
@@ -21,6 +22,8 @@ function Teacher() {
   const [subjectFilter, setSubjectFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
   const [showOverallGrades, setShowOverallGrades] = useState(true);
+  const [showChineseNames, setShowChineseNames] = useState(readChineseNamesPreference);
+  const displayName = (student: Student) => rosterStudentName(student.name, showChineseNames);
   const [editor, setEditor] = useState<
     {
       studentId: string;
@@ -66,7 +69,7 @@ function Teacher() {
   async function copyCode(student: Student) {
     try {
       await navigator.clipboard.writeText(student.accessCode);
-      setMessage(`Code copied for ${student.name}.`);
+      setMessage(`Code copied for ${displayName(student)}.`);
       setError("");
     } catch {
       setError(
@@ -239,7 +242,7 @@ function Teacher() {
       )}
       {createdStudent && (
         <div className="created-student-result">
-          <strong>{createdStudent.name}</strong> — Access Code:{" "}
+          <strong>{displayName(createdStudent)}</strong> — Access Code:{" "}
           <code>{createdStudent.accessCode}</code>{" "}
           <button onClick={() => void copyCode(createdStudent)}>
             Copy Code
@@ -300,6 +303,17 @@ function Teacher() {
             />
             Show overall grades
           </label>
+          <label className="grade-visibility-toggle">
+            <input
+              type="checkbox"
+              checked={showChineseNames}
+              onChange={event => {
+                setShowChineseNames(event.target.checked);
+                saveChineseNamesPreference(event.target.checked);
+              }}
+            />
+            Show Chinese names
+          </label>
           <span>{visible.length} student{visible.length === 1 ? "" : "s"}</span>
         </div>
         {loading
@@ -346,7 +360,7 @@ function Teacher() {
                 <tbody>
                   {visible.map((student) => (
                     <tr key={student.id} role="row">
-                      <th scope="row" role="rowheader">{student.name}</th>
+                      <th scope="row" role="rowheader">{displayName(student)}</th>
                       <td data-label="Subject" role="cell">
                         {student.subject || "Unassigned"}
                       </td>
@@ -385,7 +399,7 @@ function Teacher() {
                           <button
                             disabled={busy}
                             className="grade-action"
-                            aria-label={`Add or update grade for ${student.name}`}
+                            aria-label={`Add or update grade for ${displayName(student)}`}
                             onClick={() =>
                               setEditor({
                                 studentId: student.id,
@@ -411,7 +425,7 @@ function Teacher() {
                             onClick={() => {
                               if (
                                 window.confirm(
-                                  `Delete ${student.name} and their grades?`,
+                                  `Delete ${displayName(student)} and their grades?`,
                                 )
                               ) {
                                 void mutate(async () => {
@@ -452,7 +466,7 @@ function Teacher() {
         }}>
           <h2>
             {editor.kind === "grade" ? "Overall Grade" : "Edit Subject / Class"} —{" "}
-            {students.find((student) => student.id === editor.studentId)?.name}
+            {rosterStudentName(students.find((student) => student.id === editor.studentId)?.name ?? "", showChineseNames)}
           </h2>
           <form className="create-student-form" onSubmit={saveEditor}>
             <fieldset disabled={busy}>
@@ -507,6 +521,7 @@ function Teacher() {
         <AssessmentManager
           key={assessmentStudent.id}
           student={assessmentStudent}
+          displayName={displayName(assessmentStudent)}
           onClose={() => setAssessmentStudent(null)}
         />
       )}
