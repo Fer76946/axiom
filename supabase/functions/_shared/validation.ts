@@ -34,6 +34,15 @@ export function studentInput(body: Record<string, unknown>) {
 export function studentNameKey(name: string) {
   return name.trim().normalize("NFC").toLocaleLowerCase("en-US");
 }
+// Display-format changes are ambiguous too; this only flags review, never merges identities.
+export function studentNamesMayMatch(left: string, right: string) {
+  const aliases = (name: string) => {
+    const key = studentNameKey(name);
+    return [key, key.replace(/\p{Script=Han}+/gu, "").trim(), (key.match(/\p{Script=Han}+/gu) ?? []).join("")].filter(Boolean);
+  };
+  const rightAliases = new Set(aliases(right));
+  return aliases(left).some(alias => rightAliases.has(alias));
+}
 export function number(
   value: unknown,
   label: string,

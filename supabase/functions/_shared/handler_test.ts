@@ -356,6 +356,33 @@ Deno.test("CSV names are not identifiers: ambiguity requires review and distinct
   }, { initial: [row] });
 });
 
+Deno.test("school import display-option changes require review and do not replace grades or codes", async () => {
+  await withCsvDatabase(async (rows, calls) => {
+    const results = await (await createHandler()(importRequest([importRecord("Yoyo"), importRecord("Yoyo 张三"), importRecord("张三")]))).json();
+    assert(results.every((item: { status: string }) => item.status === "error"));
+    assert(rows.length === 1 && rows[0].access_code === "0123456" && rows[0].grades[0].grade === 89);
+    assert(!calls.some(call => call.method === "POST"));
+  }, { initial: [{ ...row, name: "Yoyo 张三" }] });
+});
+
+Deno.test("school import stores only allowed student fields and never logs or exports ignored metadata", async () => {
+  const messages: unknown[][] = [];
+  const originalError = console.error;
+  console.error = (...values: unknown[]) => { messages.push(values); };
+  try {
+    await withCsvDatabase(async (rows, calls) => {
+      const value = { ...importRecord("Alice 李四"), schoolId: "IGNORED-SCHOOL-ID", rosterNumber: "IGNORED-ROSTER", pinyin: "IGNORED-PINYIN", sex: "IGNORED-SEX", dateOfBirth: "IGNORED-DOB", parentName: "IGNORED-PARENT", parentPhone: "IGNORED-PHONE", parentEmail: "IGNORED-EMAIL" };
+      const result = await createHandler()(importRequest([value]));
+      assert((await result.json())[0].status === "created");
+      assert(rows.length === 1 && !JSON.stringify(rows).includes("IGNORED"));
+      assert(calls.filter(call => call.method === "POST").every(call => !call.body.includes("IGNORED")));
+      const exported = await (await createHandler()(request({ action: "exportStudents" }, "teacher-jwt"))).json();
+      assert(!JSON.stringify(exported).includes("IGNORED"));
+      assert(!JSON.stringify(messages).includes("IGNORED"));
+    });
+  } finally { console.error = originalError; }
+});
+
 Deno.test("CSV existing student IDs never overwrite data or create additional class accounts", async () => {
   await withCsvDatabase(async (rows, calls) => {
     const records = [

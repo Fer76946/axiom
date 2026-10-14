@@ -7,7 +7,7 @@ import {
   number,
   randomHex,
   studentInput,
-  studentNameKey,
+  studentNamesMayMatch,
   text,
   uuid,
   validAccessCode,
@@ -276,8 +276,8 @@ export function createHandler(fixedAction?: string) {
               results.push({ id: resultId, status: "existing", message: "Already imported; unchanged." });
               continue;
             }
-            if (value.confirmDistinct !== true && roster.some(row => studentNameKey(row.name) === studentNameKey(input.name))) {
-              throw new HttpError(409, "Name already in roster. Use the existing student ID, or confirm this is a different student.");
+            if (value.confirmDistinct !== true && roster.some(row => studentNamesMayMatch(row.name, input.name))) {
+              throw new HttpError(409, "Name may already be in roster. Leave existing students skipped, or confirm this is a different student.");
             }
             const created = await createStudentRecord(input, targetId, true);
             roster.push(created.row);

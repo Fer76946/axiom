@@ -13,6 +13,9 @@
 .student-csv__panel > .student-csv__actions:last-child { margin-top: 20px; }
 .student-csv__panel fieldset { margin-block: 20px; gap: 12px; }
 .student-csv__panel legend { margin-bottom: 12px; font-weight: 600; }
+.student-csv__class-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.student-csv__class-fields > label:not(.student-csv__choice) { display: grid; gap: 8px; }
+.student-csv__class-fields > .student-csv__choice { grid-column: 1 / -1; }
 .student-csv__choice { display: flex; align-items: center; gap: 9px; }
 .student-csv__choice input { width: 18px; height: 18px; min-height: 0; margin: 0; flex-shrink: 0; accent-color: var(--color-primary); }
 .student-csv__upload { display: grid; gap: 6px; min-width: 0; }
@@ -33,4 +36,5 @@
   .student-csv__panel { padding: 20px 16px; }
   .student-csv__upload { width: 100%; }
   .student-csv__scroll-hint { display: block; }
+  .student-csv__class-fields { grid-template-columns: 1fr; }
 }

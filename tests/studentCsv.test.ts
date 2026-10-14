@@ -1,66 +1,85 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_IMPORT_ROWS, previewStudentCsv, studentCsv } from "../src/domain/studentCsv.ts";
+import { readSheet } from "read-excel-file/node";
+import { MAX_IMPORT_ROWS, extractStudentNames, extractStudentNamesCsv, previewStudentNames, readStudentNames, studentCsv } from "../src/domain/studentCsv.ts";
 
-const studentId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
-const existing = [{ id: studentId, name: "Yoyo", subject: "Science", section: "6A" }];
-const header = "student_id,name,subject,section\r\n";
-test("UTF-8 BOM, Chinese/accented names, and different classes parse correctly", () => {
-  const rows = previewStudentCsv("\uFEFF" + header + ",王小明,Science,6A\r\n,José García,Algebra 2,9B\r\n", []);
-  assert.equal(rows.length, 2);
-  assert.equal(rows[0].record.name, "王小明");
-  assert.equal(rows[1].record.name, "José García");
-  assert.equal(rows[1].record.subject, "Algebra 2");
-  assert.ok(rows.every(row => !row.error && !row.warning));
-  assert.notEqual(rows[0].record.id, rows[1].record.id);
+const options = { subject: "Science", section: "6C", includeChinese: true };
+const existing = [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", name: "Yoyo 张三", subject: "Science", section: "6C" }];
+const header = "School ID,English,姓名,Parent phone,Date of birth,subject,section\r\n";
+const csv = "\uFEFFSchool roster title\r\n" + header + "IGNORED-ID,Yoyo,张三,IGNORED-PHONE,IGNORED-DOB,IGNORED-SUBJECT,IGNORED-CLASS\r\nIGNORED-ID,José García,李四,,,,\r\nIGNORED-ID,,王小明,,,,\r\nIGNORED-ID,,,IGNORED-PHONE,,,\r\n";
+
+test("school CSV headers after a title extract only English and Chinese names", () => {
+  const names = extractStudentNamesCsv(csv);
+  assert.equal(names.length, 3);
+  assert.deepEqual(names.map(row => [row.english, row.chinese]), [["Yoyo", "张三"], ["José García", "李四"], ["", "王小明"]]);
+  assert.ok(names.every(row => Object.keys(row).sort().join() === "chinese,english,error,id"));
+  assert.ok(!JSON.stringify(names).includes("IGNORED"));
+  const preview = previewStudentNames(names, [], options);
+  assert.equal(preview[0].record.name, "Yoyo 张三");
+  assert.ok(preview.every(row => row.record.subject === "Science" && row.record.section === "6C" && !row.error));
+  assert.ok(!JSON.stringify(preview).includes("IGNORED"));
 });
-test("CSV supports quoted commas, doubled quotes, and embedded newlines", () => {
-  const [row] = previewStudentCsv(header + ',"García, ""José""","Science\nLab",6B\r\n', []);
-  assert.equal(row.record.name, 'García, "José"');
-  assert.equal(row.record.subject, "Science\nLab");
-  assert.equal(row.error, "");
+test("Chinese inclusion, English-only and Chinese fallback obey the selected display option", () => {
+  const names = extractStudentNamesCsv(csv);
+  const withChinese = previewStudentNames(names, [], options);
+  const englishOnly = previewStudentNames(names, [], { ...options, includeChinese: false });
+  assert.deepEqual(withChinese.map(row => row.record.name), ["Yoyo 张三", "José García 李四", "王小明"]);
+  assert.deepEqual(englishOnly.map(row => row.record.name), ["Yoyo", "José García", "王小明"]);
+  assert.deepEqual(withChinese.map(row => row.record.id), englishOnly.map(row => row.record.id));
 });
-test("invalid fields are identified by CSV line without losing valid rows", () => {
-  const rows = previewStudentCsv(header + ",,Science,6A\r\n,Valid,Science,6B\r\n,No class,Science\r\n,bad,Science,6A,extra\r\n", []);
-  assert.equal(rows[0].line, 2);
-  assert.match(rows[0].error, /Student name is required/);
-  assert.equal(rows[1].error, "");
-  assert.match(rows[2].error, /fields/);
-  assert.match(rows[3].error, /fields/);
+test("actual XLSX file uses the same name-only extraction", async () => {
+  const cells = await readSheet(new URL("./fixtures/school-roster.xlsx", import.meta.url).pathname, 1);
+  const names = extractStudentNames(cells);
+  assert.deepEqual(names.map(row => [row.english, row.chinese]), [["Yoyo", "张三"], ["José García", "李四"], ["", "王小明"]]);
+  assert.ok(!JSON.stringify(names).includes("IGNORED"));
 });
-test("malformed CSV, invalid headers, empty files and limits are rejected", () => {
-  for (const value of ["", "name,subject\nA,B", "name,name,subject,section\nA,A,B,C", header, header + ',"Unclosed,Science,6A', header + ',"Closed"extra,Science,6A']) {
-    assert.throws(() => previewStudentCsv(value, []));
+test("CSV supports quoted commas, quotes and multiline ignored fields without retaining them", () => {
+  const names = extractStudentNamesCsv('English,姓名,Parent notes\r\n"García, ""José""",张三,"IGNORED\nPRIVATE"\r\n');
+  assert.equal(names[0].english, 'García, "José"');
+  assert.ok(!JSON.stringify(names).includes("IGNORED"));
+});
+test("only recognized headers are used; duplicate names headers and malformed CSV are rejected", () => {
+  for (const value of ["", "name,subject,section\nA,B,C", "English,English,姓名\nA,A,B", "English,姓名", 'English,姓名\n"Unclosed,A', 'English,姓名\n"Closed"extra,A']) {
+    assert.throws(() => extractStudentNamesCsv(value));
   }
-  assert.throws(() => previewStudentCsv(header + ",A,Science,6A\n".repeat(MAX_IMPORT_ROWS + 1), []), /at most/);
-  assert.throws(() => previewStudentCsv("a".repeat(2 * 1024 * 1024 + 1), []), /2 MB/);
+  const names = extractStudentNamesCsv("  ENGLISH  , 姓名 ,School ID,School ID\n Alice , 李四 ,one,two");
+  assert.equal(names[0].english, "Alice");
+  assert.equal(names[0].chinese, "李四");
 });
-test("same-name rows require identity review without treating names as IDs", () => {
-  const rows = previewStudentCsv(header + ",Yoyo,Algebra 2,9A\n,Sam,Science,6A\n,Sam,Science,6B\n,Sam,Science,6B", existing);
-  assert.ok(rows.every(row => row.warning && !row.error && !row.record.confirmDistinct));
-  assert.equal(new Set(rows.map(row => row.record.id)).size, 4);
+test("blank-name rows and repeated headers are ignored; extra/missing ignored cells do not affect names", () => {
+  const names = extractStudentNamesCsv("English,姓名,Other\n,,IGNORED\nEnglish,姓名,Other\nAlice,,extra,more\n,王小明");
+  assert.equal(names.length, 2);
+  assert.deepEqual(names.map(row => [row.english, row.chinese]), [["Alice", ""], ["", "王小明"]]);
 });
-test("existing IDs are unchanged; unknown, repeated and conflicting IDs are flagged", () => {
-  const rows = previewStudentCsv(header + `${studentId},Yoyo,Science,6A\n${studentId},Yoyo,Algebra 2,9A\nnot-an-id,New,Science,6B`, existing);
-  assert.equal(rows[0].error, "");
-  assert.equal(rows[0].record.studentId, studentId);
-  assert.match(rows[1].error, /Repeated student ID/);
-  assert.match(rows[2].error, /Invalid record ID/);
-  assert.match(previewStudentCsv(header + `${studentId},Yoyo,Science,6B`, existing)[0].error, /never overwrite/);
-  assert.match(previewStudentCsv(header + "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb,New,Science,6B", existing)[0].error, /not found/);
+test("required shared class and name limits are validated without echoing cell contents", () => {
+  const names = extractStudentNames([["English", "姓名"], ["Alice", "张三"], ["x".repeat(121), ""], [12, ""]]);
+  assert.match(previewStudentNames(names, [], { ...options, subject: "" })[0].error, /Subject is required/);
+  assert.match(previewStudentNames(names, [], { ...options, section: "" })[0].error, /Class is required/);
+  assert.match(previewStudentNames(names, [], options)[1].error, /maximum 120/);
+  assert.equal(previewStudentNames(names, [], options)[2].error, "Student names must be text.");
 });
-test("Excel export is UTF-8/BOM/CRLF, quotes correctly, and excludes secrets", () => {
-  const csv = studentCsv([{ ...existing[0], name: '王小明, "José"', accessCode: "0123456", token: "secret" } as typeof existing[0]]);
-  assert.ok(csv.startsWith("\uFEFFstudent_id,name,subject,section\r\n"));
-  assert.ok(csv.endsWith("\r\n"));
-  assert.ok(!csv.includes("0123456") && !csv.includes("secret"));
-  const [row] = previewStudentCsv(csv, [{ ...existing[0], name: '王小明, "José"' }]);
-  assert.equal(row.record.name, '王小明, "José"');
-  assert.equal(row.error, "");
+test("repeated and English/bilingual name variants are flagged, not assumed to be unique identities", () => {
+  const names = extractStudentNamesCsv("English,姓名\nYoyo,张三\nSam,李四\nSam,王五");
+  const preview = previewStudentNames(names, existing, { ...options, includeChinese: false });
+  assert.ok(preview.every(row => row.warning && !row.record.confirmDistinct));
+  assert.equal(new Set(preview.map(row => row.record.id)).size, 3);
 });
-test("Excel formula injection is neutralized even with leading whitespace", () => {
-  for (const name of ["=HYPERLINK(\"https://example.com\")", "+1", "-1", "@SUM(A1)", "  =1", "\ttext", "\ntext"]) {
-    const csv = studentCsv([{ ...existing[0], name }]);
-    assert.ok(csv.includes('"\'' + name.replace(/"/g, '""')));
+test("file and row limits apply after stripping nameless rows", () => {
+  assert.throws(() => extractStudentNamesCsv("English,姓名\n" + "A,张三\n".repeat(MAX_IMPORT_ROWS + 1)), /at most/);
+  assert.throws(() => extractStudentNamesCsv("a".repeat(2 * 1024 * 1024 + 1)), /2 MB/);
+});
+test("CSV file reader handles UTF-8, rejects invalid encoding and unsupported extensions safely", async () => {
+  const file = new File([csv], "school.csv", { type: "text/csv" });
+  assert.equal((await readStudentNames(file)).length, 3);
+  await assert.rejects(readStudentNames(new File([new Uint8Array([0xff])], "bad.csv")), /CSV UTF-8/);
+  await assert.rejects(readStudentNames(new File([csv], "school.xls")), /Older .xls/);
+});
+test("Excel export quotes Unicode names, excludes ignored fields and preserves formula protection", () => {
+  const preview = previewStudentNames(extractStudentNamesCsv(csv), [], options);
+  const exported = studentCsv(preview.map(row => ({ ...row.record, id: row.record.id, schoolId: "IGNORED-ID", parentPhone: "IGNORED-PHONE" })));
+  assert.ok(exported.startsWith("\uFEFFstudent_id,name,subject,section\r\n"));
+  assert.ok(exported.includes("José García 李四") && !exported.includes("IGNORED"));
+  for (const name of ['=HYPERLINK("https://example.com")', "+1", "-1", "@SUM(A1)", "  =1", "\ttext", "\ntext"]) {
+    assert.ok(studentCsv([{ ...existing[0], name }]).includes('"\'' + name.replace(/"/g, '""')));
   }
 });

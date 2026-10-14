@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Student, StudentImportResult } from "../../domain/types";
-import { downloadCsv, MAX_CSV_BYTES, MAX_IMPORT_ROWS, previewStudentCsv, studentCsv, type CsvImportRow } from "../../domain/studentCsv";
+import { downloadCsv, MAX_IMPORT_ROWS, previewStudentNames, readStudentNames, studentCsv, type CsvImportRow, type StudentNames, type RosterOptions } from "../../domain/studentCsv";
 import { errorMessage, studentsService } from "../../services";
 import "./StudentCsvTools.css";
 
@@ -17,7 +17,8 @@ type Props = {
 function StudentCsvTools({ students, disabled, subject, section, onBusyChange, onChanged }: Props) {
   const [panel, setPanel] = useState<"import" | "export" | null>(null);
   const [rows, setRows] = useState<PreviewRow[]>([]);
-  const [fileName, setFileName] = useState("");
+  const [names, setNames] = useState<StudentNames[]>([]);
+  const [options, setOptions] = useState<RosterOptions>({ subject, section, includeChinese: true });
   const [processing, setProcessing] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [started, setStarted] = useState(false);
@@ -36,7 +37,7 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setPanel(null);
     setRows([]);
     setStarted(false);
-    setFileName("");
+    setNames([]);
   }
 
   async function readFile(file: File) {
@@ -45,14 +46,19 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
     setSummary("");
     setRows([]);
     setStarted(false);
-    setFileName(file.name);
+    setNames([]);
     try {
-      if (file.size > MAX_CSV_BYTES) throw new Error("Choose a CSV file smaller than 2 MB.");
-      const source = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
-      setRows(previewStudentCsv(source, students));
+      const extracted = await readStudentNames(file);
+      setNames(extracted);
+      setRows(previewStudentNames(extracted, students, options));
     } catch (cause) {
-      setError(cause instanceof TypeError ? "Save the file as CSV UTF-8 in Excel, then try again." : errorMessage(cause));
+      setError(errorMessage(cause));
     } finally { setReading(false); }
+  }
+
+  function updateOptions(next: RosterOptions) {
+    setOptions(next);
+    setRows(names.length ? previewStudentNames(names, students, next) : []);
   }
 
   async function importRows() {
@@ -141,26 +147,32 @@ function StudentCsvTools({ students, disabled, subject, section, onBusyChange, o
       {panel === "import" && (
         <section className="student-csv__panel" aria-labelledby="import-title">
           <h2 id="import-title">Import students</h2>
-          <p>Use one row per student, with a name, subject, and section. Save as <strong>CSV UTF-8</strong> in Excel. Up to {MAX_IMPORT_ROWS} students and 2 MB per file.</p>
-          <p>Leave student_id blank for new students. To identify an existing student, copy its ID from a roster export. Existing records are never overwritten. Each student has one class assignment; use Edit Class to change it.</p>
+          <p>Choose your school roster with <strong>English</strong> and <strong>姓名</strong> columns. Title rows above the headers are supported. Only names are extracted locally; all other columns are discarded. Up to {MAX_IMPORT_ROWS} students and 2 MB per file. Excel uploads use the first worksheet.</p>
+          <p>Choose a subject and class for the whole roster. Existing students, grades, and access codes are never overwritten. Rows with both names missing are ignored.</p>
+          <fieldset className="student-csv__class-fields" disabled={locked || started}>
+            <legend>Class for this roster</legend>
+            <label>Subject<input type="text" maxLength={120} placeholder="Science" value={options.subject} onChange={event => updateOptions({ ...options, subject: event.target.value })} /></label>
+            <label>Class / Section<input type="text" maxLength={120} placeholder="6C" value={options.section} onChange={event => updateOptions({ ...options, section: event.target.value })} /></label>
+            <label className="student-csv__choice"><input type="checkbox" checked={options.includeChinese} onChange={event => updateOptions({ ...options, includeChinese: event.target.checked })} />Include Chinese names</label>
+          </fieldset>
           <div className="student-csv__actions">
-            <button disabled={locked} onClick={() => downloadCsv("\uFEFFstudent_id,name,subject,section\r\n", "axiom-student-template.csv")}>Download CSV Template</button>
-            <label className="student-csv__upload">Choose CSV file
-              <input type="file" accept=".csv,text/csv" disabled={locked || started} onClick={event => { event.currentTarget.value = ""; }} onChange={event => {
+            <button disabled={locked} onClick={() => downloadCsv("\uFEFFEnglish,姓名\r\n", "axiom-student-template.csv")}>Download CSV Template</button>
+            <label className="student-csv__upload">Choose Excel or CSV file
+              <input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={locked || started} onClick={event => { event.currentTarget.value = ""; }} onChange={event => {
                 const file = event.target.files?.[0];
                 if (file) void readFile(file);
               }} />
             </label>
           </div>
-          {reading && <p role="status">Reading CSV…</p>}
+          {reading && <p role="status">Reading student names…</p>}
           {rows.length > 0 && <>
-            <p>{fileName}: {rows.length} rows; {eligible.length} ready to import. Invalid and unresolved rows will be skipped.</p>
+            <p>{rows.length} students found; {eligible.length} ready to import. Invalid and unresolved rows will be skipped.</p>
             <p className="student-csv__scroll-hint">Scroll the preview sideways to review all columns.</p>
             <div className="student-csv__preview" tabIndex={0} aria-label="Student import preview">
               <table>
-                <thead><tr><th>CSV line</th><th>Student</th><th>Subject</th><th>Section</th><th>Review / result</th></tr></thead>
+                <thead><tr><th>Student display name</th><th>Subject</th><th>Class / Section</th><th>Validation status</th></tr></thead>
                 <tbody>{rows.map(row => <tr key={row.record.id}>
-                  <td>{row.line}</td><td>{row.record.name || "—"}</td><td>{row.record.subject || "—"}</td><td>{row.record.section || "—"}</td>
+                  <td>{row.record.name || "—"}</td><td>{row.record.subject || "—"}</td><td>{row.record.section || "—"}</td>
                   <td>{row.result ? <span className={row.result.status === "error" ? "student-csv__error" : ""}>{row.result.message}</span> : row.error ? <span className="student-csv__error">{row.error}</span> : row.warning ? <>
                     <p>{row.warning}</p>
                     <label className="student-csv__choice"><input type="checkbox" disabled={locked || started} checked={row.record.confirmDistinct} onChange={event => {

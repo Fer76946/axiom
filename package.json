@@ -15,7 +15,8 @@
     "@supabase/supabase-js": "^2.112.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "react-router-dom": "^7.11.0"
+    "react-router-dom": "^7.11.0",
+    "read-excel-file": "^9.3.12"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

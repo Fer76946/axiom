@@ -93,7 +93,12 @@ export const provider = {
   getStudentGrades: (studentToken: string) =>
     api<StudentGrades>("getStudentGrades", { studentToken }),
   getStudents: () => api<Student[]>("getStudents"),
-  importStudents: (records: StudentImportRecord[]) => api<StudentImportResult[]>("importStudents", { records }),
+  importStudents: (records: StudentImportRecord[]) => api<StudentImportResult[]>("importStudents", {
+    // Runtime allowlist: source spreadsheets and unrelated fields must never be uploaded.
+    records: records.map(({ id, name, subject, section, studentId, confirmDistinct }) => ({
+      id, name, subject, section, ...(studentId ? { studentId } : {}), confirmDistinct,
+    })),
+  }),
   exportStudents: (filters: { subject?: string; section?: string }) => api<StudentIdentity[]>("exportStudents", filters),
   getStudentById: (studentId: string) =>
     api<Student>("getStudentById", { studentId }),
