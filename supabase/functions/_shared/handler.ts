@@ -13,7 +13,6 @@ import {
   testQuizRevision,
   testQuizScores,
   uuid,
-  validAccessCode,
   validToken,
 } from "./validation.ts";
 
@@ -22,14 +21,16 @@ const cors = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Expose-Headers": "Retry-After",
 };
-function response(data: unknown, status = 200) {
+function response(data: unknown, status = 200, headers: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       ...cors,
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
+      ...headers,
     },
   });
 }
@@ -123,41 +124,39 @@ export function createHandler(fixedAction?: string) {
       }
 
       if (action === "studentLogin") {
-        const code = validAccessCode(body.accessCode);
-        // The gateway supplies the client address. Shared database buckets work across isolates.
-        const address =
-          request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-            "unknown";
-        const bucket = await hashToken(`student-login:${address}`);
-        const { data: allowed, error: limitError } = await db.rpc(
-          "axiom_allow_student_login",
-          { bucket_key: bucket },
-        );
-        check(limitError);
-        if (!allowed) {
-          throw new HttpError(
-            429,
-            "Too many attempts. Please wait a few minutes and try again.",
-          );
-        }
-        const { data: row, error } = await db.from("students").select(
-          "id, name, subject, section, access_code",
-        ).eq("access_code", code).maybeSingle();
-        check(error);
-        if (!row) {
-          throw new HttpError(401, "Invalid access code. Please try again.");
+        if (typeof body.browserId !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.browserId)) {
+          return response({ error: "Unable to sign in. Please refresh and try again." }, 400);
         }
         const token = randomHex();
-        const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000)
-          .toISOString();
-        const { error: sessionError } = await db.from("student_sessions")
-          .insert({
-            token_hash: await hashToken(token),
-            student_id: row.id,
-            expires_at: expiresAt,
-          });
-        check(sessionError);
-        return response({ token, expiresAt, student: identity(row) });
+        const { data: result, error: loginError } = await db.rpc(
+          "axiom_student_login",
+          {
+            p_browser_key: await hashToken(`student-login:${body.browserId.toLowerCase()}`),
+            p_access_code: typeof body.accessCode === "string" && /^\d{7}$/.test(body.accessCode)
+              ? body.accessCode : null,
+            p_token_hash: await hashToken(token),
+          },
+        );
+        if (loginError || !result) {
+          // Never log the code, browser identifier, or database error details.
+          console.error("Student sign-in database operation failed.");
+          return response({ error: "Unable to sign in right now. Please try again later." }, 503);
+        }
+        if (result.status === "blocked") {
+          const retryAfterSeconds = Math.max(1, Math.min(300, Math.ceil(Number(result.retryAfterSeconds) || 300)));
+          return response({
+            error: "Too many unsuccessful attempts. Please try again shortly.",
+            retryAfterSeconds,
+          }, 429, { "Retry-After": String(retryAfterSeconds) });
+        }
+        if (result.status === "invalid") {
+          return response({ error: "Unable to sign in. Check your access code and try again." }, 401);
+        }
+        if (result.status !== "ok" || !result.student || !result.expiresAt) {
+          return response({ error: "Unable to sign in right now. Please try again later." }, 503);
+        }
+        return response({ token, expiresAt: result.expiresAt, student: result.student });
       }
 
       if (action === "getStudentGrades" || action === "studentLogout") {

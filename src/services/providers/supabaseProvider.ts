@@ -1,4 +1,5 @@
 import { supabase } from "../../lib/supabase";
+import { getStudentBrowserId, StudentLoginCooldownError } from "../studentLogin";
 import type {
   Assessment,
   AssessmentInput,
@@ -24,6 +25,11 @@ async function invoke<T>(name: string, body: object): Promise<T> {
     if (error.context instanceof Response) {
       const detail = await error.context.json().catch(() => null);
       message = detail?.error ?? message;
+      if (name === "student-login" && error.context.status === 429) {
+        const seconds = Number(detail?.retryAfterSeconds ?? error.context.headers.get("Retry-After"));
+        throw new StudentLoginCooldownError(message,
+          Number.isFinite(seconds) && seconds > 0 ? Math.min(300, Math.ceil(seconds)) : 300);
+      }
     }
     throw new Error(message);
   }
@@ -77,8 +83,15 @@ export const provider = {
     if (error) throw error;
   },
   async studentLogin(accessCode: string): Promise<StudentSession> {
+    let browserId: string;
+    try {
+      browserId = getStudentBrowserId();
+    } catch {
+      throw new Error("Enable browser storage to sign in, then try again.");
+    }
     const session = await invoke<StudentSession>("student-login", {
       accessCode,
+      browserId,
     });
     if (
       !/^[a-f0-9]{64}$/.test(session.token ?? "") ||

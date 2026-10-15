@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/useAuth";
 import { errorMessage } from "../../services";
+import { StudentLoginCooldownError } from "../../services/studentLogin";
 import { Navigate, useNavigate } from "react-router-dom";
 import "./Login.css";
 
@@ -12,6 +13,18 @@ function Login() {
 
   const [teacherMessage, setTeacherMessage] = useState("");
   const [studentMessage, setStudentMessage] = useState("");
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(Date.now);
+  const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  useEffect(() => {
+    if (!cooldownUntil) return;
+    const timer = window.setInterval(() => {
+      const currentTime = Date.now();
+      setNow(currentTime);
+      if (currentTime >= cooldownUntil) window.clearInterval(timer);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldownUntil]);
 
   const navigate = useNavigate();
   const {
@@ -43,6 +56,7 @@ function Login() {
 
   async function handleStudentLogin(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (Date.now() < cooldownUntil) return;
     setStudentMessage("");
     setSigningInAs("student");
     const trimmedCode = accessCode.trim();
@@ -55,7 +69,14 @@ function Login() {
       await studentLogin(trimmedCode);
       navigate("/grades", { replace: true });
     } catch (error) {
-      setStudentMessage(errorMessage(error));
+      if (error instanceof StudentLoginCooldownError) {
+        const currentTime = Date.now();
+        setNow(currentTime);
+        setCooldownUntil(currentTime + error.retryAfterSeconds * 1000);
+        setStudentMessage("");
+      } else {
+        setStudentMessage(errorMessage(error));
+      }
     } finally {
       setBusy(false);
     }
@@ -107,7 +128,7 @@ function Login() {
                 />
               </label>
 
-              <button type="submit" disabled={busy}>
+              <button type="submit" disabled={busy || cooldownSeconds > 0}>
                 {busy && signingInAs === "student"
                   ? "Signing in…"
                   : "Student Sign In"}
@@ -118,6 +139,11 @@ function Login() {
               Use the code shared by your teacher. No email or password needed.
             </p>
 
+            {cooldownSeconds > 0 && (
+              <p className="login-message" role="status">
+                Too many unsuccessful attempts. Try again in {Math.floor(cooldownSeconds / 60)}:{String(cooldownSeconds % 60).padStart(2, "0")}.
+              </p>
+            )}
             {studentMessage && (
               <p className="login-message" role="alert">
                 {studentMessage}

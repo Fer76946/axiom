@@ -14,6 +14,7 @@ const row = {
   grades: [{ grade: 89 }],
 };
 const token = "a".repeat(64);
+const browserId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const request = (body: object, bearer?: string) =>
   new Request("http://localhost/axiom-api", {
     method: "POST",
@@ -49,7 +50,10 @@ async function withDatabase(
         email: "teacher@example.com",
       };
     } else if (url.includes("/profiles")) data = { role: "teacher" };
-    else if (url.includes("/rpc/axiom_allow_student_login")) data = true;
+    else if (url.includes("/rpc/axiom_student_login")) data = {
+      status: "ok", expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+      student: { id: studentA, name: row.name, subject: row.subject, section: row.section },
+    };
     else if (url.includes("/student_sessions")) {
       data = method === "GET" ? { student_id: studentA } : null;
     } else if (url.includes("/students")) data = row;
@@ -245,40 +249,84 @@ Deno.test("student logout revokes only the hashed token and is idempotent", asyn
     );
   });
 });
-Deno.test("valid code login returns identity and token without creating Auth users", async () => {
+Deno.test("both login endpoints use the atomic RPC and only return the raw token to the client", async () => {
+  for (const fixedAction of ["studentLogin", undefined]) {
+    await withDatabase(async (calls) => {
+      const result = await createHandler(fixedAction)(
+        request({ action: "studentLogin", accessCode: "0123456", browserId }),
+      );
+      assert(result.status === 200);
+      const data = await result.json();
+      assert(data.student.id === studentA && /^[a-f0-9]{64}$/.test(data.token));
+      assert(Date.parse(data.expiresAt) > Date.now());
+      assert(!("accessCode" in data.student));
+      assert(calls.length === 1 && calls[0].url.endsWith("/rpc/axiom_student_login"));
+      const payload = JSON.parse(calls[0].body);
+      assert(payload.p_access_code === "0123456");
+      assert(payload.p_browser_key === await hashToken(`student-login:${browserId}`));
+      assert(payload.p_token_hash === await hashToken(data.token));
+      assert(!calls[0].body.includes(data.token) && !calls[0].body.includes(browserId));
+    });
+  }
+});
+Deno.test("invalid authentication is generic and cooldown includes retry metadata", async () => {
+  for (const fixedAction of ["studentLogin", undefined]) {
+    await withDatabase(async (calls) => {
+      const result = await createHandler(fixedAction)(request({ action: "studentLogin", accessCode: "9999999", browserId }));
+      assert(result.status === 401);
+      assert((await result.json()).error === "Unable to sign in. Check your access code and try again.");
+      assert(calls.length === 1 && !calls[0].url.includes("/students"));
+    }, { "/rpc/axiom_student_login": { status: "invalid" } });
+    await withDatabase(async (calls) => {
+      // Even a correct code cannot bypass an active browser cooldown.
+      const result = await createHandler(fixedAction)(request({ action: "studentLogin", accessCode: "0123456", browserId }));
+      assert(result.status === 429 && result.headers.get("Retry-After") === "137");
+      assert(result.headers.get("Access-Control-Expose-Headers")?.includes("Retry-After"));
+      const data = await result.json();
+      assert(data.retryAfterSeconds === 137 && !data.token && !data.student);
+      assert(calls.length === 1);
+    }, { "/rpc/axiom_student_login": { status: "blocked", retryAfterSeconds: 137 } });
+  }
+});
+Deno.test("missing or malformed browser identifiers cannot bypass the limiter", async () => {
   await withDatabase(async (calls) => {
-    const result = await createHandler("studentLogin")(
-      request({ accessCode: "0123456" }),
-    );
-    assert(result.status === 200);
-    const data = await result.json();
-    assert(data.student.id === studentA && /^[a-f0-9]{64}$/.test(data.token));
-    assert(Date.parse(data.expiresAt) > Date.now());
-    assert(!calls.some((call) => call.url.includes("/auth/")));
-    const insert = calls.find((call) =>
-      call.url.includes("/student_sessions") && call.method === "POST"
-    );
-    assert(
-      insert && !insert.body.includes(data.token) &&
-        insert.body.includes(await hashToken(data.token)),
-    );
+    for (const id of [undefined, "", "unknown", "a".repeat(10000), studentA.replace("4aaa", "1aaa")]) {
+      for (const fixedAction of ["studentLogin", undefined]) {
+        const result = await createHandler(fixedAction)(request({ action: "studentLogin", accessCode: "0123456", browserId: id }));
+        assert(result.status === 400);
+      }
+    }
+    assert(calls.length === 0);
   });
 });
-Deno.test("invalid code and rate limit do not create a student session", async () => {
+Deno.test("malformed access codes still reach failure accounting without coercion", async () => {
   await withDatabase(async (calls) => {
-    assert(
-      (await createHandler("studentLogin")(request({ accessCode: "9999999" })))
-        .status === 401,
-    );
-    assert(!calls.some((call) => call.url.includes("/student_sessions")));
-  }, { "/students": null });
+    for (const accessCode of [undefined, 1234567, "123456", "12345678", " 0123456", "abcdefg"]) {
+      const result = await createHandler("studentLogin")(request({ accessCode, browserId }));
+      assert(result.status === 401);
+      assert(JSON.parse(calls.at(-1)!.body).p_access_code === null);
+    }
+  }, { "/rpc/axiom_student_login": { status: "invalid" } });
+});
+Deno.test("IP headers do not affect browser buckets and UUID casing cannot create a new bucket", async () => {
   await withDatabase(async (calls) => {
-    assert(
-      (await createHandler("studentLogin")(request({ accessCode: "9999999" })))
-        .status === 429,
-    );
-    assert(!calls.some((call) => call.url.includes("/students")));
-  }, { "/rpc/axiom_allow_student_login": false });
+    for (const [index, id] of [browserId, browserId.toUpperCase()].entries()) {
+      const req = request({ accessCode: "0123456", browserId: id });
+      req.headers.set("x-forwarded-for", `192.0.2.${index + 1}`);
+      req.headers.set("x-real-ip", `198.51.100.${index + 1}`);
+      assert((await createHandler("studentLogin")(req)).status === 200);
+    }
+    const keys = calls.map(call => JSON.parse(call.body).p_browser_key);
+    assert(keys.length === 2 && keys[0] === keys[1]);
+  });
+});
+Deno.test("database failure fails closed without exposing error details", async () => {
+  await withDatabase(async (calls) => {
+    const result = await createHandler("studentLogin")(request({ accessCode: "0123456", browserId }));
+    assert(result.status === 503);
+    assert(!(await result.text()).includes("private database error"));
+    assert(calls.length === 1);
+  }, { "/rpc/axiom_student_login": new Response(JSON.stringify({ message: "private database error" }), { status: 500 }) });
 });
 Deno.test("teacher creates student with numeric code and no Auth/profile account", async () => {
   await withDatabase(async (calls) => {
