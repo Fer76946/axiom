@@ -26,6 +26,17 @@ npm run test:server
 deno check --no-config --node-modules-dir=manual supabase/functions/axiom-api/index.ts supabase/functions/student-login/index.ts supabase/functions/create-student/index.ts supabase/functions/delete-student/index.ts
 ```
 
+## Web Analytics
+
+Vercel Web Analytics is mounted once in `src/layouts/MainLayout/MainLayout.tsx`
+through `@vercel/analytics/react`, covering all application routes. Development
+runs use the package's debug mode; page views are collected on Vercel deployments.
+
+Enable Web Analytics in the Vercel project's **Analytics** tab before deploying
+with `vercel --prod`. Visit the production site, then check the Analytics tab
+for visitors and page views. See the
+[Vercel setup guide](https://vercel.com/docs/analytics/quickstart) for details.
+
 ## Architecture
 
 - `src/domain/types.ts`: provider-independent student, teacher, grade,

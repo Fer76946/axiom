@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import Navbar from "../../components/Navbar/Navbar";
 import "./MainLayout.css";
 
@@ -33,6 +34,7 @@ function MainLayout({ children }: MainLayoutProps) {
       <main className="main-layout__content" id="main-content" tabIndex={-1}>
         {children}
       </main>
+      <Analytics />
     </div>
   );
 }
