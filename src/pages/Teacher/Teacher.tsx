@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { Student, StudentInput } from "../../domain/types";
 import { readChineseNamesPreference, rosterStudentName, saveChineseNamesPreference } from "../../domain/rosterNames";
 import GradeDisplay from "../../components/GradeDisplay/GradeDisplay";
 import EmptyState from "../../components/EmptyState/EmptyState";
 import { errorMessage, gradesService, studentsService } from "../../services";
 import AssessmentManager from "../../components/Assessments/AssessmentManager";
+const TestsQuizzesManager = lazy(() => import("../../components/Assessments/TestsQuizzesManager"));
 import StudentCsvTools from "../../components/Students/StudentCsvTools";
 import "./Teacher.css";
 const blankStudent: StudentInput = { name: "", subject: "", section: "" };
@@ -17,6 +18,7 @@ function Teacher() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showTestsQuizzes, setShowTestsQuizzes] = useState(false);
   const [form, setForm] = useState(blankStudent);
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
   const [subjectFilter, setSubjectFilter] = useState("");
@@ -27,7 +29,8 @@ function Teacher() {
   const [editor, setEditor] = useState<
     {
       studentId: string;
-      kind: "grade" | "class";
+      kind: "grade" | "class" | "name";
+      name: string;
       grade: string;
       subject: string;
       section: string;
@@ -90,6 +93,10 @@ function Teacher() {
     event.preventDefault();
     if (!editor) return;
     const value = editor;
+    if (value.kind === "name" && !value.name.trim()) {
+      setError("Enter a student name.");
+      return;
+    }
     if (
       value.kind === "grade" &&
       (value.grade.trim() === "" || !Number.isFinite(Number(value.grade)) ||
@@ -104,13 +111,17 @@ function Teacher() {
           value.studentId,
           Number(value.grade),
         );
+      } else if (value.kind === "name") {
+        const updated = await studentsService.updateStudentName(value.studentId, value.name);
+        setAssessmentStudent(current => current?.id === updated.id ? updated : current);
+        setCreatedStudent(current => current?.id === updated.id ? updated : current);
       } else {await studentsService.updateStudentClass(
           value.studentId,
           value.subject,
           value.section,
         );}
       setEditor(null);
-    }, value.kind === "grade" ? "Grade saved." : "Class saved.");
+    }, value.kind === "grade" ? "Grade saved." : value.kind === "name" ? "Name saved." : "Class saved.");
   }
   useEffect(() => {
     if (showCreateForm) {
@@ -187,6 +198,16 @@ function Teacher() {
         onBusyChange={setBusy}
         onChanged={reload}
       />
+      <div className="student-actions">
+        <button disabled={busy || loading} onClick={() => setShowTestsQuizzes(true)}>Tests &amp; Quizzes</button>
+      </div>
+      {showTestsQuizzes && <Suspense fallback={<p role="status">Loading Tests &amp; Quizzes…</p>}><TestsQuizzesManager
+        students={students}
+        showChineseNames={showChineseNames}
+        disabled={busy}
+        onBusyChange={setBusy}
+        onClose={() => setShowTestsQuizzes(false)}
+      /></Suspense>}
       {message && (
         <p className="feedback feedback--success" role="status">{message}</p>
       )}
@@ -253,7 +274,7 @@ function Teacher() {
         <div className="section-heading">
           <div>
             <h2>Student roster</h2>
-            <p>Manage access, class assignments, and grades.</p>
+            <p>Manage names, access, class assignments, and grades.</p>
           </div>
           <span className="count-badge">
             {loading
@@ -385,10 +406,25 @@ function Teacher() {
                           </button>
                           <button
                             disabled={busy}
+                            aria-label={`Edit name for ${displayName(student)}`}
+                            onClick={() => setEditor({
+                              studentId: student.id,
+                              kind: "name",
+                              name: student.name,
+                              grade: "",
+                              subject: "",
+                              section: "",
+                            })}
+                          >
+                            Edit Name
+                          </button>
+                          <button
+                            disabled={busy}
                             onClick={() =>
                               setEditor({
                                 studentId: student.id,
                                 kind: "class",
+                                name: student.name,
                                 grade: "",
                                 subject: student.subject ?? "",
                                 section: student.section ?? "",
@@ -404,6 +440,7 @@ function Teacher() {
                               setEditor({
                                 studentId: student.id,
                                 kind: "grade",
+                                name: student.name,
                                 grade: student.overallGrade === null
                                   ? ""
                                   : String(student.overallGrade),
@@ -417,7 +454,7 @@ function Teacher() {
                             disabled={busy}
                             onClick={() => setAssessmentStudent(student)}
                           >
-                            Assessments
+                            Tests &amp; Quizzes
                           </button>
                           <button
                             disabled={busy}
@@ -465,7 +502,7 @@ function Teacher() {
           }
         }}>
           <h2>
-            {editor.kind === "grade" ? "Overall Grade" : "Edit Subject / Class"} —{" "}
+            {editor.kind === "grade" ? "Overall Grade" : editor.kind === "name" ? "Edit Name" : "Edit Subject / Class"} —{" "}
             {rosterStudentName(students.find((student) => student.id === editor.studentId)?.name ?? "", showChineseNames)}
           </h2>
           <form className="create-student-form" onSubmit={saveEditor}>
@@ -485,7 +522,16 @@ function Teacher() {
                     />
                   </label>
                 )
-                : (
+                : editor.kind === "name" ? (
+                  <label>
+                    Student name (English and/or Chinese)<input
+                      required
+                      maxLength={120}
+                      value={editor.name}
+                      onChange={event => setEditor({ ...editor, name: event.target.value })}
+                    />
+                  </label>
+                ) : (
                   <>
                     <label>
                       Subject<input

@@ -18,6 +18,7 @@ export const studentsService = {
   exportStudents: provider.exportStudents,
   deleteStudent: provider.deleteStudent,
   updateStudentClass: provider.updateStudentClass,
+  updateStudentName: provider.updateStudentName,
 };
 export const gradesService = {
   getStudentGrades: provider.getStudentGrades,
@@ -26,6 +27,12 @@ export const gradesService = {
   createAssessment: provider.createAssessment,
   updateAssessment: provider.updateAssessment,
   deleteAssessment: provider.deleteAssessment,
+  getTestsQuizzes: provider.getTestsQuizzes,
+  getTestQuiz: provider.getTestQuiz,
+  saveTestQuiz: provider.saveTestQuiz,
+  saveTestQuizScores: provider.saveTestQuizScores,
+  deleteTestQuiz: provider.deleteTestQuiz,
+  getStudentTestsQuizzes: provider.getStudentTestsQuizzes,
 };
 export function errorMessage(error: unknown): string {
   return error instanceof Error

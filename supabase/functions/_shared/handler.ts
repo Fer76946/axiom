@@ -9,6 +9,9 @@ import {
   studentInput,
   studentNamesMayMatch,
   text,
+  testQuizInput,
+  testQuizRevision,
+  testQuizScores,
   uuid,
   validAccessCode,
   validToken,
@@ -48,6 +51,19 @@ type AssessmentRow = {
   max_score: number;
   date: string;
 };
+type TestQuizRow = {
+  id: string;
+  kind: "test" | "quiz";
+  title: string;
+  max_score: number;
+  date: string;
+  classes: { subject: string; section: string }[];
+  revision: number;
+};
+const testQuiz = (row: TestQuizRow) => ({
+  id: row.id, kind: row.kind, title: row.title, maxScore: row.max_score,
+  date: row.date, classes: row.classes, revision: row.revision,
+});
 const identity = (row: StudentIdentityRow) => ({
   id: row.id,
   name: row.name,
@@ -94,6 +110,17 @@ export function createHandler(fixedAction?: string) {
       const check = (error: { message: string } | null) => {
         if (error) throw new Error(error.message);
       };
+      async function studentTestsQuizzes(studentId: string) {
+        const results = [];
+        for (let offset = 0; ; offset += 1000) {
+          const { data, error } = await db.rpc("axiom_student_tests_quizzes", { target_student_id: studentId }).range(offset, offset + 999);
+          check(error);
+          results.push(...(data ?? []).map((item: Omit<TestQuizRow, "classes" | "revision"> & { score: number | null }) => ({
+            id: item.id, kind: item.kind, title: item.title, maxScore: item.max_score, date: item.date, score: item.score,
+          })));
+          if ((data?.length ?? 0) < 1000) return results;
+        }
+      }
 
       if (action === "studentLogin") {
         const code = validAccessCode(body.accessCode);
@@ -173,6 +200,7 @@ export function createHandler(fixedAction?: string) {
           student: identity(row),
           overallGrade: row.grades?.[0]?.grade ?? null,
           assessments: (items ?? []).map(assessment),
+          testsQuizzes: await studentTestsQuizzes(session.student_id),
         });
       }
 
@@ -240,6 +268,58 @@ export function createHandler(fixedAction?: string) {
         const section = body.section === undefined || body.section === "" ? undefined : text(body.section, "Class");
         // Export has its own teacher authorization and never selects credentials.
         return response((await readRoster(subject, section)).map(identity));
+      }
+      if (action === "getStudentTestsQuizzes") {
+        return response(await studentTestsQuizzes(uuid(body.studentId)));
+      }
+      if (action === "getTestsQuizzes") {
+        const results = [];
+        for (let offset = 0; ; offset += 1000) {
+          const { data, error } = await db.from("tests_quizzes").select("*").order("date", { ascending: false }).order("id").range(offset, offset + 999);
+          check(error);
+          results.push(...(data ?? []).map(testQuiz));
+          if ((data?.length ?? 0) < 1000) return response(results);
+        }
+      }
+      if (action === "getTestQuiz") {
+        const id = uuid(body.id);
+        const { data: item, error } = await db.from("tests_quizzes").select("*").eq("id", id).maybeSingle();
+        check(error);
+        if (!item) throw new HttpError(404, "Test or quiz not found.");
+        const scores = new Map<string, number | null>();
+        for (let offset = 0; ; offset += 1000) {
+          const { data, error } = await db.from("test_quiz_scores").select("student_id, score").eq("test_quiz_id", id).order("student_id").range(offset, offset + 999);
+          check(error);
+          for (const score of data ?? []) scores.set(score.student_id, score.score);
+          if ((data?.length ?? 0) < 1000) break;
+        }
+        const classes = (item as TestQuizRow).classes;
+        const students = (await readRoster()).map(row => ({
+          ...identity(row), score: scores.get(row.id) ?? null,
+          applicable: classes.some(value => value.subject === row.subject && value.section === row.section),
+        })).filter(row => row.applicable || scores.has(row.id));
+        return response({ item: testQuiz(item), students });
+      }
+      if (action === "saveTestQuiz" || action === "saveTestQuizScores") {
+        const id = uuid(body.id);
+        const args = action === "saveTestQuiz" ? {
+          record_id: id, expected_revision: body.revision === null ? null : testQuizRevision(body.revision), details: testQuizInput(body),
+        } : {
+          record_id: id, expected_revision: testQuizRevision(body.revision), scores: testQuizScores(body.scores),
+        };
+        const query = db.rpc(action === "saveTestQuiz" ? "axiom_save_test_quiz" : "axiom_save_test_quiz_scores", args);
+        const { data, error } = await (action === "saveTestQuiz" ? query.single() : query);
+        if (error?.code === "40001") throw new HttpError(409, "This test or quiz changed. Reload it before saving.");
+        if (error?.code === "P0002") throw new HttpError(404, "Test or quiz not found.");
+        if (error?.code === "22023") throw new HttpError(400, error.message);
+        check(error);
+        return response(action === "saveTestQuiz" ? testQuiz(data as TestQuizRow) : { success: true });
+      }
+      if (action === "deleteTestQuiz") {
+        const { data, error } = await db.from("tests_quizzes").delete().eq("id", uuid(body.id)).eq("revision", testQuizRevision(body.revision)).select("id");
+        check(error);
+        if (!data?.length) throw new HttpError(409, "This test or quiz changed or was deleted. Reload it before deleting.");
+        return response({ success: true });
       }
       if (action === "importStudents") {
         if (!Array.isArray(body.records) || !body.records.length || body.records.length > 25) {
@@ -315,6 +395,16 @@ export function createHandler(fixedAction?: string) {
         check(error);
         if (!deleted) throw new HttpError(404, "Student not found.");
         return response({ success: true });
+      }
+      if (action === "updateStudentName") {
+        const { data, error } = await db.from("students").update({
+          name: text(body.name, "Student name").normalize("NFC"),
+        }).eq("id", uuid(body.studentId)).select(
+          "id, name, subject, section, access_code, grades(grade)",
+        ).maybeSingle();
+        check(error);
+        if (!data) throw new HttpError(404, "Student not found.");
+        return response(student(data));
       }
       if (action === "updateStudentClass") {
         const { data, error } = await db.from("students").update({

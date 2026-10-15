@@ -66,6 +66,35 @@ export function assessmentInput(body: Record<string, unknown>) {
   ) throw new HttpError(400, "Invalid assessment date.");
   return { title, score, max_score: maxScore, date };
 }
+export function testQuizInput(body: Record<string, unknown>) {
+  if (body.kind !== "test" && body.kind !== "quiz") throw new HttpError(400, "Choose Test or Quiz.");
+  const { title, max_score: maxScore, date } = assessmentInput({ ...body, score: 0 });
+  if (!Array.isArray(body.classes) || body.classes.length < 1 || body.classes.length > 100) {
+    throw new HttpError(400, "Choose between 1 and 100 classes.");
+  }
+  const classes = body.classes.map(value => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new HttpError(400, "Choose valid classes.");
+    return { subject: text(value.subject, "Subject"), section: text(value.section, "Class") };
+  });
+  if (new Set(classes.map(value => JSON.stringify(value))).size !== classes.length) {
+    throw new HttpError(400, "Choose each class once.");
+  }
+  return { kind: body.kind, title, maxScore, date, classes };
+}
+export function testQuizRevision(value: unknown): number {
+  const revision = number(value, "Revision", 1);
+  if (!Number.isSafeInteger(revision)) throw new HttpError(400, "Invalid revision.");
+  return revision;
+}
+export function testQuizScores(value: unknown) {
+  if (!Array.isArray(value) || !value.length || value.length > 1000) throw new HttpError(400, "Save between 1 and 1000 changed scores.");
+  const scores = value.map(item => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw new HttpError(400, "Invalid score.");
+    return { studentId: uuid(item.studentId), score: item.score === null ? null : number(item.score, "Score", 0) };
+  });
+  if (new Set(scores.map(item => item.studentId)).size !== scores.length) throw new HttpError(400, "Duplicate student scores.");
+  return scores;
+}
 export function validAccessCode(value: unknown): string {
   if (typeof value !== "string" || !/^\d{7}$/.test(value)) {
     throw new HttpError(400, "Enter a valid 7-digit access code.");

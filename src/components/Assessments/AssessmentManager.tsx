@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { Assessment, AssessmentInput, Student } from "../../domain/types";
+import type { Assessment, AssessmentInput, Student, StudentTestQuiz } from "../../domain/types";
 import { errorMessage, gradesService } from "../../services";
 import EmptyState from "../EmptyState/EmptyState";
+import TestQuizResults from "./TestQuizResults";
 const emptyForm = (): AssessmentInput => {
   const today = new Date();
   const date = `${today.getFullYear()}-${
@@ -23,6 +24,7 @@ export default function AssessmentManager(
     panel.current?.focus({ preventScroll: true });
   }, []);
   const [items, setItems] = useState<Assessment[]>([]);
+  const [shared, setShared] = useState<StudentTestQuiz[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editing, setEditing] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,8 +33,8 @@ export default function AssessmentManager(
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let active = true;
-    gradesService.getAssessments(student.id).then((data) => {
-      if (active) setItems(data);
+    Promise.all([gradesService.getAssessments(student.id), gradesService.getStudentTestsQuizzes(student.id)]).then(([data, results]) => {
+      if (active) { setItems(data); setShared(results); }
     }).catch((cause) => {
       if (active) setError(errorMessage(cause));
     }).finally(() => {
@@ -59,7 +61,7 @@ export default function AssessmentManager(
     }
   }
   async function remove(item: Assessment) {
-    if (!window.confirm(`Delete assessment "${item.title}"?`)) return;
+    if (!window.confirm(`Delete individual result "${item.title}"?`)) return;
     setBusy(true);
     setError("");
     try {
@@ -80,7 +82,7 @@ export default function AssessmentManager(
       className="students-card assessment-manager"
       ref={panel}
       tabIndex={-1}
-      aria-label={`Assessments for ${displayName}`}
+      aria-label={`Tests & Quizzes for ${displayName}`}
       onKeyDown={event => {
         if (event.key === "Escape" && !event.nativeEvent.isComposing && editing && !busy) {
           event.preventDefault();
@@ -91,7 +93,7 @@ export default function AssessmentManager(
       }}
     >
       <div className="teacher-header">
-        <h2>Assessments — {displayName}</h2>
+        <h2>Tests &amp; Quizzes — {displayName}</h2>
         <button disabled={busy} onClick={onClose}>Close</button>
       </div>
       {error && (
@@ -109,12 +111,12 @@ export default function AssessmentManager(
         </p>
       )}
       {loading
-        ? <p className="loading-state" role="status">Loading assessments...</p>
+        ? <p className="loading-state" role="status">Loading tests and quizzes...</p>
         : items.length === 0
         ? (
           <EmptyState
-            title="No assessments yet"
-            description="Add a test, quiz, or assignment below. Scores are shown individually to this student."
+            title="No individual results yet"
+            description="Add an individual result below, or use Tests & Quizzes above the roster to create a test or quiz for whole classes."
           />
         )
         : (
@@ -155,8 +157,13 @@ export default function AssessmentManager(
             ))}
           </ul>
         )}
+      {!loading && shared.length > 0 && <>
+        <h3>Class tests and quizzes</h3>
+        <p>Edit these scores from Tests &amp; Quizzes above the roster.</p>
+        <TestQuizResults items={shared} />
+      </>}
       <form className="create-student-form assessment-form" onSubmit={save}>
-        <h3>{editing ? "Edit Assessment" : "Add Assessment"}</h3>
+        <h3>{editing ? "Edit individual result" : "Add individual result"}</h3>
         <fieldset disabled={busy || loading}>
           <label>
             Title<input
@@ -199,7 +206,7 @@ export default function AssessmentManager(
           </label>
           <div className="student-actions">
             <button type="submit">
-              {busy ? "Saving…" : "Save Assessment"}
+              {busy ? "Saving…" : "Save result"}
             </button>
             {editing && (
               <button

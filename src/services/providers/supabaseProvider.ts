@@ -10,6 +10,11 @@ import type {
   StudentImportResult,
   StudentSession,
   TeacherSession,
+  TestQuiz,
+  TestQuizInput,
+  TestQuizDetails,
+  TestQuizScore,
+  StudentTestQuiz,
 } from "../../domain/types";
 
 async function invoke<T>(name: string, body: object): Promise<T> {
@@ -108,6 +113,8 @@ export const provider = {
     invoke<{ success: boolean }>("delete-student", { studentId }),
   updateStudentClass: (studentId: string, subject: string, section: string) =>
     api<Student>("updateStudentClass", { studentId, subject, section }),
+  updateStudentName: (studentId: string, name: string) =>
+    api<Student>("updateStudentName", { studentId, name }),
   updateOverallGrade: (studentId: string, grade: number) =>
     api<{ success: boolean }>("updateOverallGrade", { studentId, grade }),
   getAssessments: (studentId: string) =>
@@ -118,4 +125,14 @@ export const provider = {
     api<Assessment>("updateAssessment", { assessmentId, ...input }),
   deleteAssessment: (assessmentId: string) =>
     api<{ success: boolean }>("deleteAssessment", { assessmentId }),
+  getTestsQuizzes: () => api<TestQuiz[]>("getTestsQuizzes"),
+  getTestQuiz: (id: string) => api<TestQuizDetails>("getTestQuiz", { id }),
+  saveTestQuiz: (id: string, revision: number | null, input: TestQuizInput) =>
+    api<TestQuiz>("saveTestQuiz", { id, revision, ...input }),
+  saveTestQuizScores: (id: string, revision: number, scores: TestQuizScore[]) =>
+    api<{ success: boolean }>("saveTestQuizScores", { id, revision, scores }),
+  deleteTestQuiz: (id: string, revision: number) =>
+    api<{ success: boolean }>("deleteTestQuiz", { id, revision }),
+  getStudentTestsQuizzes: (studentId: string) =>
+    api<StudentTestQuiz[]>("getStudentTestsQuizzes", { studentId }),
 };

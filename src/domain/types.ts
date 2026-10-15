@@ -30,10 +30,26 @@ export type Assessment = {
   date: string;
 };
 export type AssessmentInput = Omit<Assessment, "id" | "studentId">;
+export type TestQuizClass = { subject: string; section: string };
+export type TestQuizInput = {
+  kind: "test" | "quiz";
+  title: string;
+  maxScore: number;
+  date: string;
+  classes: TestQuizClass[];
+};
+export type TestQuiz = TestQuizInput & { id: string; revision: number };
+export type TestQuizScore = { studentId: string; score: number | null };
+export type TestQuizDetails = {
+  item: TestQuiz;
+  students: (StudentIdentity & { score: number | null; applicable: boolean })[];
+};
+export type StudentTestQuiz = Omit<TestQuiz, "classes" | "revision"> & { score: number | null };
 export type StudentGrades = {
   student: StudentIdentity;
   overallGrade: number | null;
   assessments: Assessment[];
+  testsQuizzes: StudentTestQuiz[];
 };
 export type StudentSession = {
   token: string;

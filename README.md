@@ -248,6 +248,43 @@ or logs. Live student data is not used for these checks.
 
 ## MVP navigation
 
+### Tests & Quizzes
+
+Open **Tests & Quizzes** above the teacher roster, choose **Create test or quiz**,
+enter its type, title, date, and maximum score, then select the applicable
+subject/class pairs. Save to open a score table for all current students in
+those classes. Enter scores and choose **Save scores**; blank means not graded
+yet, while zero is a graded score. Clearing a saved score returns it to ungraded.
+New students in the selected classes appear automatically. Students with saved
+results remain in the score table if they move class or a class is removed.
+
+Use **Edit details / classes** to change the test or quiz. Reducing the maximum
+below a saved score is rejected; scores are never automatically scaled. Stale
+edits are rejected so two open editors cannot silently overwrite each other.
+Deleting a test/quiz requires confirmation and removes its associated scores.
+Existing individual results remain editable through each student's
+**Tests & Quizzes** action. Students see their own shared tests/quizzes and
+individual results; they see **Not graded yet** for applicable ungraded work.
+Overall grades remain independent.
+
+Deploy in order: apply `supabase/migrations/202610150001_tests_quizzes.sql` to a
+staging database with the existing classroom schema, run
+`supabase/tests/tests_quizzes_test.sql` there with `psql -v ON_ERROR_STOP=1`,
+then apply the new migration to production, deploy the updated `axiom-api`, and
+deploy the frontend. The new migration only adds shared test/quiz tables and
+service-role-only functions. It preserves existing assessments, grades, access
+codes, policies, and student sessions. Do not replay the original classroom
+migration if it was previously applied manually but is absent from CLI history;
+verify/reconcile that history first.
+
+Teachers can choose **Edit Name** in the student roster to correct an English,
+Chinese, or bilingual display name. The editor always shows the full stored
+name, including when **Show Chinese names** is off. Names are required and
+limited to 120 characters. Saving preserves the student's ID, access code,
+class assignments, grades, and sessions. Cancel or Escape dismisses the editor.
+This feature requires deploying the updated `axiom-api` function before the
+frontend; no database migration is needed.
+
 The homepage (`/`) uses the existing student access-code and teacher
 email/password login forms. After session restoration, signed-in students go
 to `/grades` and teachers with a teacher profile go to `/teacher`. The old

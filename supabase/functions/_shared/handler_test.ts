@@ -133,11 +133,18 @@ Deno.test("all teacher actions reject unauthenticated student sessions", async (
         "exportStudents",
         "deleteStudent",
         "updateStudentClass",
+        "updateStudentName",
         "updateOverallGrade",
         "getAssessments",
         "createAssessment",
         "updateAssessment",
         "deleteAssessment",
+        "getTestsQuizzes",
+        "getTestQuiz",
+        "saveTestQuiz",
+        "saveTestQuizScores",
+        "deleteTestQuiz",
+        "getStudentTestsQuizzes",
       ]
     ) {
       assert(
@@ -159,6 +166,51 @@ Deno.test("authenticated non-teacher cannot mutate student data", async () => {
     );
     assert(!calls.some((call) => call.url.includes("axiom_delete_student")));
   }, { "/profiles": { role: "student" } });
+});
+Deno.test("teacher renames only the selected student while preserving class, access code, and grades", async () => {
+  const name = "José García 李四";
+  await withDatabase(async (calls) => {
+    const result = await createHandler()(request({
+      action: "updateStudentName", studentId: studentA,
+      name: "  Jose\u0301 García 李四  ", subject: "Other", access_code: "9999999",
+    }, "teacher-jwt"));
+    assert(result.status === 200);
+    const data = await result.json();
+    assert(data.id === studentA && data.name === name);
+    assert(data.subject === row.subject && data.section === row.section);
+    assert(data.accessCode === row.access_code && data.overallGrade === 89);
+    const writes = calls.filter(call => call.method !== "GET");
+    assert(writes.length === 1 && writes[0].method === "PATCH");
+    assert(writes[0].url.includes(`/students?id=eq.${studentA}`));
+    assert(JSON.stringify(JSON.parse(writes[0].body)) === JSON.stringify({ name }));
+  }, { "/students": { ...row, name } });
+});
+Deno.test("invalid name or student ID cannot reach a rename write", async () => {
+  await withDatabase(async (calls) => {
+    for (const fields of [
+      { studentId: studentA, name: "   " },
+      { studentId: studentA, name: "a".repeat(121) },
+      { studentId: studentA, name: 123 },
+      { studentId: "invalid", name: "Alice" },
+    ]) {
+      const result = await createHandler()(request({ action: "updateStudentName", ...fields }, "teacher-jwt"));
+      assert(result.status === 400);
+    }
+    assert(!calls.some(call => call.method !== "GET"));
+  });
+});
+Deno.test("rename rejects authenticated non-teachers", async () => {
+  await withDatabase(async (calls) => {
+    const result = await createHandler()(request({ action: "updateStudentName", studentId: studentA, name: "Alice" }, "user-jwt"));
+    assert(result.status === 403);
+    assert(!calls.some(call => call.url.includes("/students")));
+  }, { "/profiles": { role: "student" } });
+});
+Deno.test("rename reports a missing student", async () => {
+  await withDatabase(async () => {
+    const result = await createHandler()(request({ action: "updateStudentName", studentId: studentA, name: "Alice" }, "teacher-jwt"));
+    assert(result.status === 404);
+  }, { "/students": null });
 });
 Deno.test("invalid overall grade does not reach a write query", async () => {
   await withDatabase(async (calls) => {
@@ -451,4 +503,108 @@ Deno.test("CSV export paginates the entire roster, supports class filters and ex
     assert(data.length === 3 && data.every((item: { section: string }) => item.section === "6B"));
     assert((await handler(request({ action: "exportStudents", subject: 12 }, "teacher-jwt"))).status === 400);
   }, { initial });
+});
+
+const sharedQuiz = {
+  id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", kind: "quiz", title: "Cells", max_score: 20,
+  date: "2026-10-15", classes: [{ subject: "Science", section: "6A" }], revision: 2,
+};
+Deno.test("all shared test and quiz operations require a teacher profile", async () => {
+  await withDatabase(async calls => {
+    for (const action of ["getTestsQuizzes", "getTestQuiz", "saveTestQuiz", "saveTestQuizScores", "deleteTestQuiz", "getStudentTestsQuizzes"]) {
+      const result = await createHandler()(request({ action, id: sharedQuiz.id, studentId: studentA }, "non-teacher-jwt"));
+      assert(result.status === 403);
+    }
+    assert(calls.every(call => call.url.includes("/auth/") || call.url.includes("/profiles")));
+  }, { "/profiles": { role: "student" } });
+});
+Deno.test("shared result reads use the authenticated student ID and omit other student data", async () => {
+  await withDatabase(async calls => {
+    const result = await createHandler()(request({ action: "getStudentGrades", studentToken: token, studentId: studentB }));
+    assert(result.status === 200);
+    const data = await result.json();
+    assert(data.testsQuizzes.length === 1 && data.testsQuizzes[0].score === null);
+    assert(Object.keys(data.testsQuizzes[0]).sort().join() === "date,id,kind,maxScore,score,title");
+    const rpc = calls.find(call => call.url.includes("axiom_student_tests_quizzes"));
+    assert(rpc && JSON.parse(rpc.body).target_student_id === studentA);
+    assert(!calls.some(call => call.body.includes(studentB) || call.url.includes(studentB)));
+  }, { "/rpc/axiom_student_tests_quizzes": [{ ...sharedQuiz, score: null }] });
+});
+Deno.test("score table includes applicable students and preserves previously graded students", async () => {
+  const other = { ...row, id: studentB, section: "6B" };
+  await withDatabase(async calls => {
+    const result = await createHandler()(request({ action: "getTestQuiz", id: sharedQuiz.id }, "teacher-jwt"));
+    const data = await result.json();
+    assert(result.status === 200 && data.item.maxScore === 20);
+    assert(data.students.length === 2);
+    assert(data.students.find((item: { id: string }) => item.id === studentA).score === null);
+    assert(data.students.find((item: { id: string }) => item.id === studentA).applicable);
+    assert(data.students.find((item: { id: string }) => item.id === studentB).score === 0);
+    assert(!data.students.find((item: { id: string }) => item.id === studentB).applicable);
+    assert(data.students.every((item: Record<string, unknown>) => !("accessCode" in item) && !("access_code" in item)));
+    assert(calls.find(call => call.url.includes("test_quiz_scores"))?.url.includes(`test_quiz_id=eq.${sharedQuiz.id}`));
+  }, {
+    "/tests_quizzes": sharedQuiz,
+    "/test_quiz_scores": [{ student_id: studentB, score: 0 }],
+    "/students": [row, other, { ...row, id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd", section: "6C" }],
+  });
+});
+Deno.test("shared creation validates details and allowlists the atomic database input", async () => {
+  await withDatabase(async calls => {
+    const result = await createHandler()(request({
+      action: "saveTestQuiz", id: sharedQuiz.id, revision: null, kind: "quiz", title: " Cells ", maxScore: 20,
+      date: "2026-10-15", classes: sharedQuiz.classes, score: 0, studentId: studentB,
+    }, "teacher-jwt"));
+    assert(result.status === 200);
+    const write = calls.find(call => call.url.includes("/rpc/axiom_save_test_quiz"));
+    assert(write);
+    const payload = JSON.parse(write.body);
+    assert(payload.record_id === sharedQuiz.id && payload.expected_revision === null);
+    assert(JSON.stringify(payload.details) === JSON.stringify({ kind: "quiz", title: "Cells", maxScore: 20, date: "2026-10-15", classes: sharedQuiz.classes }));
+    assert(!calls.some(call => call.url.includes("/grades")));
+  }, { "/rpc/axiom_save_test_quiz": sharedQuiz });
+});
+Deno.test("invalid shared details and scores never reach a database write", async () => {
+  const valid = { id: sharedQuiz.id, revision: 2, kind: "quiz", title: "Cells", maxScore: 20, date: "2026-10-15", classes: sharedQuiz.classes };
+  await withDatabase(async calls => {
+    for (const fields of [
+      { kind: "assignment" }, { title: " " }, { maxScore: 0 }, { maxScore: "20" }, { date: "2026-02-30" },
+      { classes: [] }, { classes: [null] }, { classes: [...sharedQuiz.classes, ...sharedQuiz.classes] },
+      { revision: 1.5 }, { id: "invalid" },
+    ]) {
+      assert((await createHandler()(request({ action: "saveTestQuiz", ...valid, ...fields }, "teacher-jwt"))).status === 400);
+    }
+    for (const scores of [[], [{ studentId: studentA, score: -1 }], [{ studentId: studentA, score: "" }],
+      [{ studentId: "invalid", score: 5 }], [{ studentId: studentA, score: 0 }, { studentId: studentA, score: null }]]) {
+      assert((await createHandler()(request({ action: "saveTestQuizScores", id: sharedQuiz.id, revision: 2, scores }, "teacher-jwt"))).status === 400);
+    }
+    assert(calls.every(call => call.method === "GET"));
+  });
+});
+Deno.test("score save distinguishes clearing from zero and reports stale revisions", async () => {
+  await withDatabase(async calls => {
+    const result = await createHandler()(request({ action: "saveTestQuizScores", id: sharedQuiz.id, revision: 2,
+      scores: [{ studentId: studentA, score: null }, { studentId: studentB, score: 0 }],
+    }, "teacher-jwt"));
+    assert(result.status === 200);
+    const write = calls.find(call => call.url.includes("/rpc/axiom_save_test_quiz_scores"));
+    assert(write);
+    const payload = JSON.parse(write.body);
+    assert(payload.expected_revision === 2 && payload.scores[0].score === null && payload.scores[1].score === 0);
+  });
+  await withDatabase(async () => {
+    const result = await createHandler()(request({ action: "saveTestQuizScores", id: sharedQuiz.id, revision: 2,
+      scores: [{ studentId: studentA, score: 3 }],
+    }, "teacher-jwt"));
+    assert(result.status === 409);
+  }, { "/rpc/axiom_save_test_quiz_scores": new Response(JSON.stringify({ code: "40001", message: "stale revision" }), { status: 409 }) });
+});
+Deno.test("test deletion checks the selected ID and revision", async () => {
+  await withDatabase(async calls => {
+    const result = await createHandler()(request({ action: "deleteTestQuiz", id: sharedQuiz.id, revision: 2 }, "teacher-jwt"));
+    assert(result.status === 200);
+    const deletion = calls.find(call => call.method === "DELETE");
+    assert(deletion?.url.includes(`id=eq.${sharedQuiz.id}`) && deletion.url.includes("revision=eq.2"));
+    assert(!calls.some(call => call.url.includes("/grades")));
+  }, { "/tests_quizzes": [{ id: sharedQuiz.id }] });
 });

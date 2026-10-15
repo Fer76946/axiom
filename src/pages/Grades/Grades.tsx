@@ -4,6 +4,7 @@ import { errorMessage, gradesService } from "../../services";
 import type { StudentGrades } from "../../domain/types";
 import GradeDisplay from "../../components/GradeDisplay/GradeDisplay";
 import EmptyState from "../../components/EmptyState/EmptyState";
+import TestQuizResults from "../../components/Assessments/TestQuizResults";
 import "./Grades.css";
 
 function Grades() {
@@ -91,16 +92,17 @@ function Grades() {
           <article className="grade-card assessments-card">
             <div className="section-heading">
               <div>
-                <h2>Assessments</h2>
-                <p>Individual tests, quizzes, and assignments.</p>
+                <h2>Tests &amp; Quizzes</h2>
+                <p>Your scores and upcoming grading.</p>
               </div>
-              <span className="count-badge">{data.assessments.length}</span>
+              <span className="count-badge">{data.assessments.length + data.testsQuizzes.length}</span>
             </div>
-            {data.assessments.length === 0
+            {data.testsQuizzes.length > 0 && <TestQuizResults items={data.testsQuizzes} />}
+            {data.assessments.length === 0 && data.testsQuizzes.length === 0
               ? (
                 <EmptyState
                   title="Your learning record starts here"
-                  description="Test and assignment scores will appear here when your teacher adds them."
+                  description="Tests and quizzes will appear here when your teacher adds them."
                 />
               )
               : (
