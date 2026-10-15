@@ -23,6 +23,7 @@ function Teacher() {
   const [createdStudent, setCreatedStudent] = useState<Student | null>(null);
   const [subjectFilter, setSubjectFilter] = useState("");
   const [sectionFilter, setSectionFilter] = useState("");
+  const [nameSearch, setNameSearch] = useState("");
   const [showOverallGrades, setShowOverallGrades] = useState(true);
   const [showChineseNames, setShowChineseNames] = useState(readChineseNamesPreference);
   const displayName = (student: Student) => rosterStudentName(student.name, showChineseNames);
@@ -160,9 +161,11 @@ function Teacher() {
   ].sort((a, b) =>
     a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
   );
+  const nameQuery = nameSearch.trim().normalize("NFKC").toLowerCase();
   const visible = students.filter((student) =>
     (!subjectFilter || student.subject === subjectFilter) &&
-    (!sectionFilter || student.section === sectionFilter)
+    (!sectionFilter || student.section === sectionFilter) &&
+    student.name.normalize("NFKC").toLowerCase().includes(nameQuery)
   ).sort((a, b) => {
     const classA = a.section?.trim() ?? "";
     const classB = b.section?.trim() ?? "";
@@ -286,6 +289,15 @@ function Teacher() {
         </div>
         <div className="student-filters">
           <label>
+            Search by name
+            <input
+              type="search"
+              placeholder="Enter a student name"
+              value={nameSearch}
+              onChange={(event) => setNameSearch(event.target.value)}
+            />
+          </label>
+          <label>
             Subject
             <span className="student-filter-select">
               <select
@@ -348,7 +360,9 @@ function Teacher() {
                 ? "Student list unavailable"
                 : "Your classroom starts here"}
               description={students.length
-                ? "Try another subject or class to find your students."
+                ? nameQuery
+                  ? "Try another name or clear the search. You can also change the subject or class."
+                  : "Try another subject or class to find your students."
                 : error
                 ? "Use Retry loading above to reconnect to your roster."
                 : "Create your first student to share an access code and start recording grades."}
