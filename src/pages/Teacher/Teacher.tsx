@@ -7,6 +7,7 @@ import { errorMessage, gradesService, studentsService } from "../../services";
 import AssessmentManager from "../../components/Assessments/AssessmentManager";
 const TestsQuizzesManager = lazy(() => import("../../components/Assessments/TestsQuizzesManager"));
 import StudentCsvTools from "../../components/Students/StudentCsvTools";
+import AccessCode from "../../components/Students/AccessCode";
 import "./Teacher.css";
 const blankStudent: StudentInput = { name: "", subject: "", section: "" };
 function Teacher() {
@@ -83,6 +84,16 @@ function Teacher() {
         "Could not copy automatically. Select the access code and copy it manually.",
       );
     }
+  }
+  function resetCode(student: Student) {
+    if (!window.confirm(`Reset the access code for ${displayName(student)}? Their current code will stop working for new sign-ins.`)) return;
+    void mutate(async () => {
+      const { accessCode } = await studentsService.resetStudentAccessCode(student.id);
+      // Update displayed/copyable codes even if the subsequent roster reload fails.
+      setStudents(current => current.map(item => item.id === student.id ? { ...item, accessCode } : item));
+      setCreatedStudent(current => current?.id === student.id ? { ...current, accessCode } : current);
+      setAssessmentStudent(current => current?.id === student.id ? { ...current, accessCode } : current);
+    }, "Access code reset. Click its box to reveal the new code.");
   }
   function create(event: React.FormEvent) {
     event.preventDefault();
@@ -294,7 +305,7 @@ function Teacher() {
       {createdStudent && (
         <div className="created-student-result">
           <strong>{displayName(createdStudent)}</strong> — Access Code:{" "}
-          <code>{createdStudent.accessCode}</code>{" "}
+          <AccessCode key={createdStudent.accessCode} code={createdStudent.accessCode} studentName={displayName(createdStudent)} />{" "}
           <button onClick={() => void copyCode(createdStudent)}>
             Copy Code
           </button>
@@ -430,7 +441,7 @@ function Teacher() {
                         {student.section || "Unassigned"}
                       </td>
                       <td data-label="Access code" role="cell">
-                        <code>{student.accessCode}</code>
+                        <AccessCode key={student.accessCode} code={student.accessCode} studentName={displayName(student)} />
                       </td>
                       {showOverallGrades && (
                         <td data-label="Overall grade" role="cell">
@@ -453,6 +464,13 @@ function Teacher() {
                             onClick={() => void copyCode(student)}
                           >
                             Copy Code
+                          </button>
+                          <button
+                            disabled={busy}
+                            aria-label={`Reset access code for ${displayName(student)}`}
+                            onClick={() => resetCode(student)}
+                          >
+                            Reset Code
                           </button>
                           <button
                             disabled={busy}

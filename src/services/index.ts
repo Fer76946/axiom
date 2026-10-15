@@ -17,6 +17,7 @@ export const studentsService = {
   importStudents: provider.importStudents,
   exportStudents: provider.exportStudents,
   deleteStudent: provider.deleteStudent,
+  resetStudentAccessCode: provider.resetStudentAccessCode,
   updateStudentClass: provider.updateStudentClass,
   updateStudentName: provider.updateStudentName,
 };

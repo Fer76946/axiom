@@ -136,6 +136,7 @@ Deno.test("all teacher actions reject unauthenticated student sessions", async (
         "importStudents",
         "exportStudents",
         "deleteStudent",
+        "resetStudentAccessCode",
         "updateStudentClass",
         "updateStudentName",
         "updateOverallGrade",
@@ -655,4 +656,72 @@ Deno.test("test deletion checks the selected ID and revision", async () => {
     assert(deletion?.url.includes(`id=eq.${sharedQuiz.id}`) && deletion.url.includes("revision=eq.2"));
     assert(!calls.some(call => call.url.includes("/grades")));
   }, { "/tests_quizzes": [{ id: sharedQuiz.id }] });
+});
+
+Deno.test("teacher reset changes only the selected student's code and ignores supplied code/identity fields", async () => {
+  let generated = "";
+  await withDatabase(async (calls) => {
+    const result = await createHandler()(request({
+      action: "resetStudentAccessCode", studentId: studentA,
+      accessCode: "123", name: "Changed", subject: "Other", grade: 100,
+    }, "teacher-jwt"));
+    assert(result.status === 200);
+    const data = await result.json();
+    assert(data.accessCode === generated && /^\d{7}$/.test(generated));
+    assert(Object.keys(data).length === 1);
+    const updates = calls.filter(call => call.method === "PATCH");
+    assert(updates.length === 1 && updates[0].url.includes(`id=eq.${studentA}`));
+    assert(!calls.some(call => call.url.includes("/student_sessions") || call.url.includes("/grades")));
+  }, { "/students": ({ method, body, url }: { method: string; body: string; url: string }) => {
+    assert(method === "PATCH");
+    const payload = JSON.parse(body);
+    assert(Object.keys(payload).length === 1 && /^\d{7}$/.test(payload.access_code));
+    generated = payload.access_code;
+    assert(url.includes(`access_code=neq.${generated}`));
+    return { access_code: generated };
+  } });
+});
+
+Deno.test("code reset retries collisions and reports exhausted retries without leaking codes", async () => {
+  for (const failures of [2, 10]) {
+    let attempts = 0;
+    await withDatabase(async (calls) => {
+      const result = await createHandler()(request({ action: "resetStudentAccessCode", studentId: studentA }, "teacher-jwt"));
+      assert(result.status === (failures === 10 ? 503 : 200));
+      assert(attempts === (failures === 10 ? 10 : 3));
+      assert(calls.filter(call => call.method === "PATCH").length === attempts);
+      if (failures === 10) assert((await result.json()).error === "Could not allocate an access code. Please try again.");
+    }, { "/students": ({ body }: { body: string }) => {
+      attempts++;
+      return attempts <= failures
+        ? new Response(JSON.stringify({ code: "23505", message: "private constraint details" }), { status: 409 })
+        : { access_code: JSON.parse(body).access_code };
+    } });
+  }
+});
+
+Deno.test("code reset handles unchanged candidates and missing students", async () => {
+  for (const exists of [true, false]) {
+    let updates = 0;
+    await withDatabase(async () => {
+      const result = await createHandler()(request({ action: "resetStudentAccessCode", studentId: studentA }, "teacher-jwt"));
+      assert(result.status === (exists ? 200 : 404));
+      assert(updates === (exists ? 2 : 1));
+    }, { "/students": ({ method, body }: { method: string; body: string }) => {
+      if (method === "GET") return exists ? { id: studentA } : null;
+      updates++;
+      return updates === 1 ? null : { access_code: JSON.parse(body).access_code };
+    } });
+  }
+});
+
+Deno.test("code reset rejects non-teachers and malformed student IDs before any update", async () => {
+  await withDatabase(async (calls) => {
+    assert((await createHandler()(request({ action: "resetStudentAccessCode", studentId: studentA }, "user-jwt"))).status === 403);
+    assert(!calls.some(call => call.url.includes("/students")));
+  }, { "/profiles": { role: "student" } });
+  await withDatabase(async (calls) => {
+    assert((await createHandler()(request({ action: "resetStudentAccessCode", studentId: "invalid" }, "teacher-jwt"))).status === 400);
+    assert(!calls.some(call => call.url.includes("/students")));
+  });
 });

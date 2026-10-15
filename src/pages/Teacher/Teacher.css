@@ -240,6 +240,23 @@
   gap: 7px;
   flex-wrap: wrap;
 }
+.access-code-toggle {
+  font: inherit;
+  padding: 0;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+}
+.access-code-toggle code {
+  display: inline-block;
+  user-select: none;
+}
+.access-code-toggle:hover:not(:disabled) {
+  background: transparent;
+}
+.created-student-result .access-code-toggle {
+  margin-left: 0;
+}
 .student-table .student-actions {
   display: grid;
   grid-template-columns: repeat(3, max-content);

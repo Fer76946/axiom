@@ -124,6 +124,8 @@ export const provider = {
     invoke<Student>("create-student", input),
   deleteStudent: (studentId: string) =>
     invoke<{ success: boolean }>("delete-student", { studentId }),
+  resetStudentAccessCode: (studentId: string) =>
+    api<{ accessCode: string }>("resetStudentAccessCode", { studentId }),
   updateStudentClass: (studentId: string, subject: string, section: string) =>
     api<Student>("updateStudentClass", { studentId, subject, section }),
   updateStudentName: (studentId: string, name: string) =>

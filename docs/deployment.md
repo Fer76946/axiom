@@ -57,6 +57,8 @@ supabase functions deploy delete-student
 
 Use the checked-in function configuration and [server authorization model](authentication.md). The frontend expects the current function response shapes; there is no fallback to browser-supplied student IDs for grade access. Name edits and roster imports also depend on the corresponding `axiom-api` operations.
 
+Access-code resets require the updated `axiom-api` function before the matching frontend. They use the existing student table and unique-code constraint; no additional database migration is required for resets.
+
 ## Roll out browser login limits
 
 The browser limiter has been verified locally but has not been migrated or deployed to the live project during its implementation. Confirm the target environment's actual state before treating its login as browser-limited.

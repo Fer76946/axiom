@@ -21,6 +21,8 @@ Logout clears the local session immediately and requests server-side token revoc
 
 Access codes are bearer credentials: anyone who knows a valid code can use it. Share them privately. Tokens in browser storage also require protection against cross-site scripting. Legacy identity-only browser storage cannot authorize access.
 
+Verified teachers can reset a student's code through `resetStudentAccessCode`. The server generates the replacement, enforces a change from the current code, and retries uniqueness conflicts. Resetting changes only the code; existing authenticated sessions remain valid until logout or expiry. The teacher interface hides code text until clicked. This is visual masking, not an additional authorization boundary: authorized teacher responses still contain the code for reveal and copy actions.
+
 ## Browser login limits
 
 The current source implements limits by browser identifier, with these rules:

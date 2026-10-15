@@ -13,6 +13,8 @@ The teacher dashboard supports these roster operations:
 - **Show Chinese names** defaults on and remembers the teacher's browser preference. It changes display only; Chinese-only names remain visible.
 - **Edit Name** opens the full stored name, including hidden Chinese text. Names are required and limited to 120 characters. Saving preserves the student ID, access code, class, grades, and sessions; Cancel or Escape dismisses the editor.
 - **Edit Subject / Class** changes the student's assignment. Each student has one subject/class pair.
+- Access-code boxes start hidden, including the newly created student notice. Click a box to reveal its seven digits; click again to hide them. **Copy Code** works without revealing the code on screen.
+- **Reset Code** asks for confirmation, then generates a new unique seven-digit code. The old code stops working for new sign-ins. The replacement starts hidden; click its box to read it. Resetting preserves the student's records, grades, class assignment, and existing sessions.
 
 Teachers enter overall grades independently of assessment results. See [current scope](architecture.md#current-scope) for the classroom model's limits.
 

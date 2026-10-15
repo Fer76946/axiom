@@ -395,6 +395,25 @@ export function createHandler(fixedAction?: string) {
         if (!deleted) throw new HttpError(404, "Student not found.");
         return response({ success: true });
       }
+      if (action === "resetStudentAccessCode") {
+        const studentId = uuid(body.studentId);
+        for (let attempt = 0; attempt < 10; attempt++) {
+          const accessCode = generateAccessCode();
+          // The unique constraint handles other students' codes; neq ensures a
+          // reset changes this student's code even during concurrent resets.
+          const { data, error } = await db.from("students")
+            .update({ access_code: accessCode }).eq("id", studentId)
+            .neq("access_code", accessCode).select("access_code").maybeSingle();
+          if (error?.code === "23505") continue;
+          check(error);
+          if (data) return response({ accessCode: data.access_code });
+          const { data: existing, error: readError } = await db.from("students")
+            .select("id").eq("id", studentId).maybeSingle();
+          check(readError);
+          if (!existing) throw new HttpError(404, "Student not found.");
+        }
+        throw new HttpError(503, "Could not allocate an access code. Please try again.");
+      }
       if (action === "updateStudentName") {
         const { data, error } = await db.from("students").update({
           name: text(body.name, "Student name").normalize("NFC"),
