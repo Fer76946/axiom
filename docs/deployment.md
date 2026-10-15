@@ -61,7 +61,7 @@ Access-code resets require the updated `axiom-api` function before the matching 
 
 ## Roll out browser login limits
 
-The browser limiter has been verified locally but has not been migrated or deployed to the live project during its implementation. Confirm the target environment's actual state before treating its login as browser-limited.
+The browser-limit migration and both login-capable functions were deployed to the linked Axiom project on October 15, 2026. For other environments, confirm migration history and follow the coordinated rollout below.
 
 Coordinate this change during a maintenance window:
 
