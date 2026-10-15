@@ -206,6 +206,17 @@
 .student-table tbody tr:last-child > * {
   border-bottom: 0;
 }
+.student-table .grade-empty-action {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+.student-table .grade-empty-action:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
+}
 .student-table td {
   overflow-wrap: anywhere;
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Student, StudentInput } from "../../domain/types";
 import { readChineseNamesPreference, rosterStudentName, saveChineseNamesPreference } from "../../domain/rosterNames";
 import GradeDisplay from "../../components/GradeDisplay/GradeDisplay";
@@ -12,6 +12,7 @@ const blankStudent: StudentInput = { name: "", subject: "", section: "" };
 function Teacher() {
   const editorPanel = useRef<HTMLElement>(null);
   const createPanel = useRef<HTMLElement>(null);
+  const gradeReturn = useRef<{ x: number; y: number; studentId: string; restore: boolean } | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -64,8 +65,10 @@ function Teacher() {
       await work();
       await reload();
       setMessage(success);
+      return true;
     } catch (cause) {
       setError(errorMessage(cause));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -90,7 +93,18 @@ function Teacher() {
       setShowCreateForm(false);
     }, "Student created.");
   }
-  function saveEditor(event: React.FormEvent) {
+  function openGradeEditor(student: Student) {
+    gradeReturn.current = { x: window.scrollX, y: window.scrollY, studentId: student.id, restore: false };
+    setEditor({
+      studentId: student.id,
+      kind: "grade",
+      name: student.name,
+      grade: student.overallGrade === null ? "" : String(student.overallGrade),
+      subject: "",
+      section: "",
+    });
+  }
+  async function saveEditor(event: React.FormEvent) {
     event.preventDefault();
     if (!editor) return;
     const value = editor;
@@ -106,7 +120,7 @@ function Teacher() {
       setError("Enter a grade between 0 and 100.");
       return;
     }
-    void mutate(async () => {
+    const saved = await mutate(async () => {
       if (value.kind === "grade") {
         await gradesService.updateOverallGrade(
           value.studentId,
@@ -121,8 +135,12 @@ function Teacher() {
           value.subject,
           value.section,
         );}
-      setEditor(null);
+      if (value.kind !== "grade") setEditor(null);
     }, value.kind === "grade" ? "Grade saved." : value.kind === "name" ? "Name saved." : "Class saved.");
+    if (saved && value.kind === "grade") {
+      if (gradeReturn.current) gradeReturn.current.restore = true;
+      setEditor(null);
+    }
   }
   useEffect(() => {
     if (showCreateForm) {
@@ -131,6 +149,15 @@ function Teacher() {
   }, [showCreateForm]);
   const editingId = editor?.studentId;
   const editingKind = editor?.kind;
+  // Restore after the saved roster renders and the editor is removed.
+  useLayoutEffect(() => {
+    if (editingId) return;
+    const destination = gradeReturn.current;
+    gradeReturn.current = null;
+    if (!destination?.restore) return;
+    document.getElementById(`grade-${destination.studentId}`)?.focus({ preventScroll: true });
+    window.scrollTo({ left: destination.x, top: destination.y, behavior: "instant" });
+  }, [editingId]);
   useEffect(() => {
     if (!editingId) return;
     editorPanel.current?.scrollIntoView({
@@ -407,7 +434,16 @@ function Teacher() {
                       </td>
                       {showOverallGrades && (
                         <td data-label="Overall grade" role="cell">
-                          <GradeDisplay grade={student.overallGrade} />
+                          {student.overallGrade === null ? (
+                            <button
+                              className="grade-empty-action"
+                              disabled={busy}
+                              aria-label={`Add overall grade for ${displayName(student)}`}
+                              onClick={() => openGradeEditor(student)}
+                            >
+                              <GradeDisplay grade={null} />
+                            </button>
+                          ) : <GradeDisplay grade={student.overallGrade} />}
                         </td>
                       )}
                       <td data-label="Actions" role="cell">
@@ -449,18 +485,9 @@ function Teacher() {
                           <button
                             disabled={busy}
                             className="grade-action"
+                            id={`grade-${student.id}`}
                             aria-label={`Add or update grade for ${displayName(student)}`}
-                            onClick={() =>
-                              setEditor({
-                                studentId: student.id,
-                                kind: "grade",
-                                name: student.name,
-                                grade: student.overallGrade === null
-                                  ? ""
-                                  : String(student.overallGrade),
-                                subject: "",
-                                section: "",
-                              })}
+                            onClick={() => openGradeEditor(student)}
                           >
                             Grade
                           </button>

@@ -9,6 +9,7 @@ The teacher dashboard supports these roster operations:
 - **Search by name** matches partial English or Chinese names, ignores capitalization, and trims the query's surrounding whitespace. It searches the stored name even when Chinese name display is off. Subject/class filters still apply; codes and other fields are not searched.
 - **Subject** and **Section / Class** narrow the roster. Changing subject clears the selected class.
 - **Show overall grades** controls grade visibility in the roster.
+- Click **No grade yet** or **Grade** to edit a student's overall grade. After a successful save, the page returns to its previous scroll position and focuses that student's Grade button. Failed saves keep the editor open.
 - **Show Chinese names** defaults on and remembers the teacher's browser preference. It changes display only; Chinese-only names remain visible.
 - **Edit Name** opens the full stored name, including hidden Chinese text. Names are required and limited to 120 characters. Saving preserves the student ID, access code, class, grades, and sessions; Cancel or Escape dismisses the editor.
 - **Edit Subject / Class** changes the student's assignment. Each student has one subject/class pair.
